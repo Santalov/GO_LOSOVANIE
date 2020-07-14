@@ -10,7 +10,7 @@ type TransInBlock struct {
 	transaction *Transaction
 }
 
-type Block struct{
+type Block struct {
 	prevBlockHash [HASH_SIZE]byte
 	merkleTree [HASH_SIZE]byte
 	timestamp uint64

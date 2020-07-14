@@ -3,32 +3,8 @@ package evote
 import (
 	"encoding/binary"
 )
-/*
-struct Transaction {
-	uint32 inputsSize; // размер массива входов
-	Input[] inputs; // массив входов
-	uint32 outputsSize;
-	Output[] output;
-    uint8_t typeValue[32]; //hash
-	uint32 typeVote;
-	uint32 duration;
-    uint8_t hashLink[32]; //hash
-    uint8_t signature[64];  // signature[32:] + signature[:32] подпись
-}
 
-INPUTS_SIZE = "inputSize"
-	INPUTS = "inputs"
-	OUTPUTS_SIZE = "outputSize"
-	OUTPUTS = "outputs"
-	TYPE_VALUE = "typeValue"
-	TYPE_VOTE = "typeVote"
-	DURATION = "duration"
-	HASH_LINK = "hashLink"
-	SIGNATURE = "signature"
-
-txid =  hash(serialize(Transaction));
-*/
-
+//func for Search in Database
 func SearchTrans(prevId [HASH_SIZE]byte) *Transaction {
 	return nil
 }
