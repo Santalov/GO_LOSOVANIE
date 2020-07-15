@@ -9,6 +9,11 @@ func SearchTrans(prevId [HASH_SIZE]byte) *Transaction {
 	return nil
 }
 
+type TransAndHash struct {
+	hash [HASH_SIZE]byte // 32 bytes
+	transaction *Transaction
+}
+
 type TransactionInput struct {
 	prevId [HASH_SIZE]byte
 	outIndex uint32

@@ -5,9 +5,9 @@ import (
 	"time"
 )
 
-type TransInBlock struct {
-	hash []byte // 32 bytes
-	transaction *Transaction
+type BlocAndkHash struct {
+	b *Block
+	hash [HASH_SIZE]byte
 }
 
 type Block struct {
@@ -15,7 +15,7 @@ type Block struct {
 	merkleTree [HASH_SIZE]byte
 	timestamp uint64
 	transSize uint32
-	trans []TransInBlock
+	trans []TransAndHash
 }
 
 func (b *Block) ToBytes() []byte {
@@ -64,7 +64,7 @@ func (b *Block) CheckMiningReward(data []byte, creator [PKEY_SIZE]byte) ([]byte,
 
 }
 
-func (b *Block) CreateMiningReward(keys *CryptoKeysData) TransInBlock {
+func (b *Block) CreateMiningReward(keys *CryptoKeysData) TransAndHash {
 	var t Transaction
 	t.inputSize = 0
 	t.outputSize = 1
@@ -78,16 +78,16 @@ func (b *Block) CreateMiningReward(keys *CryptoKeysData) TransInBlock {
 	t.hashLink = ZERO_ARRAY_HASH
 	t.signature = ZERO_ARRAY_SIG
 	copy(t.signature[:], keys.Sign(t.ToBytes()))
-	var minigReward TransInBlock
+	var minigReward TransAndHash
 	minigReward.transaction = &t
-	minigReward.hash = Hash(t.ToBytes())
+	copy(minigReward.hash[:],Hash(t.ToBytes()))
 	return minigReward
 }
 
 func (b *Block) BuildMerkleTree() [HASH_SIZE]byte  {
 	var hashes [][]byte
 	for _, t := range b.trans {
-		hashes = append(hashes, t.hash)
+		hashes = append(hashes, t.hash[:])
 	}
 	for {
 		var nextHashes [][]byte
@@ -109,11 +109,11 @@ func (b *Block) BuildMerkleTree() [HASH_SIZE]byte  {
 	return hash
 }
 
-func (b *Block) HashBlock() []byte {
-	return Hash(b.ToBytes())
+func (b *Block) HashBlock(data []byte) []byte {
+	return Hash(data)
 }
 
-func (b *Block) CreateBlock(t []TransInBlock, prevHash [HASH_SIZE]byte, key *CryptoKeysData) {
+func (b *Block) CreateBlock(t []TransAndHash, prevHash [HASH_SIZE]byte, key *CryptoKeysData) {
 	b.trans = append(b.trans, b.CreateMiningReward(key))
 	b.trans = append(b.trans, t...)
 	b.prevBlockHash = prevHash
@@ -137,11 +137,10 @@ func (b *Block) Verify(data []byte, prevHash [HASH_SIZE]byte,
 	if transLen < 0 {
 		return nil, ERR_BLOCK_VERIFY
 	}
-	
-	b.trans = append(b.trans, TransInBlock{
-		hash:        hash,
-		transaction: trans,
-	})
+	var transHash TransAndHash
+	copy(transHash.hash[:], hash)
+	transHash.transaction = trans
+	b.trans = append(b.trans, transHash)
 	blockLen += transLen
 	transData = data[blockLen:]
 
@@ -152,10 +151,9 @@ func (b *Block) Verify(data []byte, prevHash [HASH_SIZE]byte,
 		if transLen < 0 {
 			return nil, ERR_BLOCK_VERIFY
 		}
-		b.trans = append(b.trans, TransInBlock{
-			hash:        hash,
-			transaction: &t,
-		})
+		copy(transHash.hash[:], hash)
+		transHash.transaction = &t
+		b.trans = append(b.trans, transHash)
 		blockLen += transLen
 		transData = transData[transLen:]
 	}
