@@ -90,17 +90,17 @@ func (bc *Blockchain) Start() {
 			fmt.Println("I must stop!")
 			return
 		case <-bc.ticker:
-			go bc.DoTick() // запускаем тик в фоне, чтобы он не стопил основной цикл
+			go bc.doTick() // запускаем тик в фоне, чтобы он не стопил основной цикл
 		// сам тик потом сделает bc.ticker<-true, чтобы цикл продолжился
 		case msg := <-bc.chs.blocks:
 			// нужно обработчики блоков вынести в отдельные горутины
-			bc.OnBlockRecive(msg.data, msg.response)
+			bc.onBlockReceive(msg.data, msg.response)
 		case msg := <-bc.chs.blockVotes:
-			bc.OnBlockVote(msg.data)
+			bc.onBlockVote(msg.data)
 			// ответ в сеть всегда положительный, голос всегда принимается
 			msg.response <- ResponseMsg{ok: true}
 		case msg := <-bc.chs.kickValidatorVote:
-			bc.OnKickValidatorVote(msg.data)
+			bc.onKickValidatorVote(msg.data)
 			// ответ в сеть всегда положительный, голос всегда принимается
 			msg.response <- ResponseMsg{ok: true}
 		case msg := <-bc.chs.txsValidator:
@@ -113,7 +113,7 @@ func (bc *Blockchain) Start() {
 	}
 }
 
-func (bc *Blockchain) OnBlockRecive(data []byte, response chan ResponseMsg) {
+func (bc *Blockchain) onBlockReceive(data []byte, response chan ResponseMsg) {
 	var b Block
 	hash, blockLen := b.Verify(data, bc.prevBlockHash, bc.currentLeader)
 	if blockLen != len(data) {
@@ -133,7 +133,7 @@ func (bc *Blockchain) OnBlockRecive(data []byte, response chan ResponseMsg) {
 	response <- ResponseMsg{ok: true}
 }
 
-func (bc *Blockchain) OnBlockVote(data []byte) {
+func (bc *Blockchain) onBlockVote(data []byte) {
 	if len(data) != HASH_SIZE+PKEY_SIZE+1 {
 		return
 	}
@@ -151,7 +151,7 @@ func (bc *Blockchain) OnBlockVote(data []byte) {
 	}
 }
 
-func (bc *Blockchain) OnKickValidatorVote(data []byte) {
+func (bc *Blockchain) onKickValidatorVote(data []byte) {
 	if len(data) != PKEY_SIZE {
 		return
 	}
@@ -163,14 +163,14 @@ func (bc *Blockchain) OnKickValidatorVote(data []byte) {
 	bc.kickVoting[kickPkey] += 1
 }
 
-func (bc *Blockchain) UpdatePrevHashBlock() {
+func (bc *Blockchain) updatePrevHashBlock() {
 	for i := MAX_PREV_BLOCK_HASHES - 1; i >= 1; i-- {
 		bc.prevBlockHashes[i] = bc.prevBlockHashes[i-1]
 	}
 	bc.prevBlockHashes[0] = bc.currentBock.hash
 }
 
-func (bc *Blockchain) ContainsTransInBlock(hash [HASH_SIZE]byte) bool {
+func (bc *Blockchain) containsTransInBlock(hash [HASH_SIZE]byte) bool {
 	for _, val := range bc.currentBock.b.trans {
 		if hash == val.hash {
 			return true
@@ -179,16 +179,16 @@ func (bc *Blockchain) ContainsTransInBlock(hash [HASH_SIZE]byte) bool {
 	return false
 }
 
-func (bc *Blockchain) UpdateUnrecordedTrans() {
+func (bc *Blockchain) updateUnrecordedTrans() {
 	var newUnrecorded []TransAndHash
 	for _, t := range bc.unrecordedTrans {
-		if !bc.ContainsTransInBlock(t.hash) {
+		if !bc.containsTransInBlock(t.hash) {
 			newUnrecorded = append(newUnrecorded, t)
 		}
 	}
 }
 
-func (bc *Blockchain) ProcessKick() {
+func (bc *Blockchain) processKick() {
 	for k, v := range bc.kickVoting {
 		if float32(v)/float32(len(bc.validators)) > 0.5 {
 			for i, validator := range bc.validators {
@@ -212,14 +212,14 @@ func (bc *Blockchain) ClearBlockVoting() {
 	}
 }
 
-func (bc *Blockchain) DoTick() {
-	bc.ProcessKick()
+func (bc *Blockchain) doTick() {
+	bc.processKick()
 
 	bc.currentLeader = bc.validators[bc.chainSize%uint64(len(bc.validators))].pkey
 	bc.nextLeaderVoteTime = time.Now().Add(bc.nextLeaderPeriod)
 
 	bc.ClearBlockVoting()
-	bc.OnThisCreateBlock()
+	bc.onThisCreateBlock()
 
 	//ждем
 
@@ -240,9 +240,9 @@ func (bc *Blockchain) DoTick() {
 	}
 
 	if noVote < yesVote {
-		bc.UpdatePrevHashBlock()
+		bc.updatePrevHashBlock()
 		//запись блока в БД
-		bc.UpdateUnrecordedTrans()
+		bc.updateUnrecordedTrans()
 		bc.chainSize += 1
 	} else if bc.currentLeader != bc.thisKey.pubKeyByte {
 		bc.suspiciousValidators[bc.currentLeader] += 1
@@ -254,7 +254,7 @@ func (bc *Blockchain) DoTick() {
 	bc.ticker <- true
 }
 
-func (bc *Blockchain) OnThisCreateBlock() {
+func (bc *Blockchain) onThisCreateBlock() {
 	var b Block
 	b.CreateBlock(bc.unrecordedTrans[:MAX_TRANS_SIZE], bc.prevBlockHash, bc.thisKey)
 	blockBytes := b.ToBytes()
@@ -265,6 +265,6 @@ func (bc *Blockchain) OnThisCreateBlock() {
 	// послать в сеть блок
 }
 
-func (bc *Blockchain) VoteKickValidator(pkey [PKEY_SIZE]byte) {
+func (bc *Blockchain) voteKickValidator(pkey [PKEY_SIZE]byte) {
 	bc.kickVoting[pkey] += 1
 }
