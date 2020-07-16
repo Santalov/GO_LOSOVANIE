@@ -1,6 +1,7 @@
 package evote
 
 import (
+	"bytes"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -11,7 +12,7 @@ import (
 )
 
 const (
-	CHAN_SIZE = 1000
+	chanSize = 1000
 )
 
 // сообщение, которое будет передаваться Blockchain из серверной части сети
@@ -40,16 +41,28 @@ type ResponseMsg struct {
 
 type Network struct {
 	chs NetworkChannels
+	// здесь мб еще поля будут
 }
 
 func (n *Network) Init() *NetworkChannels {
 
+	// определение обработчиков запросов
+	http.Handle("/info", http.HandlerFunc(n.handleInfo))
+	http.Handle("/getTxs", http.HandlerFunc(n.handleGetTxs))
+	http.Handle("/getTxsByPubKey", http.HandlerFunc(n.handleGetTxsByPubKey))
+	http.Handle("/getUTXOByPubKey", http.HandlerFunc(n.handleGetUTXOByPubKey))
+	http.Handle("/submitClientTx", http.HandlerFunc(n.handleSubmitClientTx))
+	http.Handle("/submitValidatorTx", http.HandlerFunc(n.handleSubmitValidatorTx))
+	http.Handle("/submitBlock", http.HandlerFunc(n.handleSubmitBlock))
+	http.Handle("/blockVote", http.HandlerFunc(n.handleBlockVote))
+	http.Handle("/kickValidatorVote", http.HandlerFunc(n.handleKickValidatorVote))
+
 	n.chs = NetworkChannels{
-		make(chan NetworkMsg, CHAN_SIZE),
-		make(chan NetworkMsg, CHAN_SIZE),
-		make(chan NetworkMsg, CHAN_SIZE),
-		make(chan NetworkMsg, CHAN_SIZE),
-		make(chan NetworkMsg, CHAN_SIZE),
+		make(chan NetworkMsg, chanSize),
+		make(chan NetworkMsg, chanSize),
+		make(chan NetworkMsg, chanSize),
+		make(chan NetworkMsg, chanSize),
+		make(chan NetworkMsg, chanSize),
 	}
 	return &n.chs
 }
@@ -60,7 +73,54 @@ func (n *Network) Serve() {
 	panic(err)
 }
 
+func sendBinary(url string, data []byte, ch chan *http.Response) {
+	resp, err := http.Post(url, "application/octet-stream", bytes.NewReader(data))
+	if err != nil {
+		fmt.Printf("network err: %v\n", err)
+	}
+	ch <- resp
+}
+
+func (n *Network) sendBinaryToAll(hosts []string, data []byte, endpoint string) {
+	responses := make(chan *http.Response, len(hosts))
+	for _, host := range hosts {
+		go sendBinary(host+endpoint, data, responses)
+	}
+	for range hosts {
+		<-responses
+	}
+}
+
+func (n *Network) sendBlockToAll(hosts []string, data []byte) {
+	n.sendBinaryToAll(hosts, data, "/submitBlock")
+}
+
+func (n *Network) sendTxToAll(hosts []string, data []byte) {
+	n.sendBinaryToAll(hosts, data, "/submitValidatorTx")
+}
+
+func (n *Network) sendVoteToAll(hosts []string, data []byte) {
+	n.sendBinaryToAll(hosts, data, "/blockVote")
+}
+
+func (n *Network) sendKickMsgToAll(hosts []string, data []byte) {
+	n.sendBinaryToAll(hosts, data, "/kickValidatorVote")
+}
+
 var successResp = []byte("{\"success\":true}")
+
+// вспомогательные функции
+
+func response(w http.ResponseWriter, resp ResponseMsg) {
+	if !resp.ok {
+		http.Error(w, resp.error, http.StatusBadRequest)
+	} else {
+		_, err := fmt.Fprint(w, successResp)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		}
+	}
+}
 
 // обработчики для запросов от клиентов
 
@@ -80,16 +140,16 @@ func (n *Network) handleInfo(w http.ResponseWriter, _ *http.Request) {
 	}
 }
 
-func (n *Network) handleGetTx(w http.ResponseWriter, req *http.Request) {
-	http.Error(w, "service unavailable", http.StatusServiceUnavailable)
+func (n *Network) handleGetTxs(w http.ResponseWriter, req *http.Request) {
+	http.Error(w, "not implemented", http.StatusNotImplemented)
 }
 
 func (n *Network) handleGetTxsByPubKey(w http.ResponseWriter, req *http.Request) {
-	http.Error(w, "service unavailable", http.StatusServiceUnavailable)
+	http.Error(w, "not implemented", http.StatusNotImplemented)
 }
 
 func (n *Network) handleGetUTXOByPubKey(w http.ResponseWriter, req *http.Request) {
-	http.Error(w, "service unavailable", http.StatusServiceUnavailable)
+	http.Error(w, "not implemented", http.StatusNotImplemented)
 }
 
 func (n *Network) handleSubmitClientTx(w http.ResponseWriter, req *http.Request) {
@@ -118,31 +178,39 @@ func (n *Network) handleSubmitClientTx(w http.ResponseWriter, req *http.Request)
 		response: ch,
 	}
 	resp := <-ch
-	if !resp.ok {
-		http.Error(w, resp.error, http.StatusBadRequest)
-	} else {
-		_, err := fmt.Fprint(w, successResp)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusServiceUnavailable)
-		}
-	}
+	response(w, resp)
 }
 
 // обработчики запросов от других валидаторов
 // отличаются тем, что работают с бинарями, а так же логикой
 
-func (n *Network) handleSubmitServerTx(w http.ResponseWriter, req *http.Request) {
+func handleBinary(msgChan chan NetworkMsg, w http.ResponseWriter, req *http.Request) {
+	data, err := ioutil.ReadAll(req.Body)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusServiceUnavailable)
+	}
+	ch := make(chan ResponseMsg)
+	msgChan <- NetworkMsg{
+		data:     data,
+		from:     req.Host,
+		response: ch,
+	}
+	resp := <-ch
+	response(w, resp)
+}
 
+func (n *Network) handleSubmitValidatorTx(w http.ResponseWriter, req *http.Request) {
+	handleBinary(n.chs.txsValidator, w, req)
 }
 
 func (n *Network) handleSubmitBlock(w http.ResponseWriter, req *http.Request) {
-
+	handleBinary(n.chs.blocks, w, req)
 }
 
 func (n *Network) handleBlockVote(w http.ResponseWriter, req *http.Request) {
-
+	handleBinary(n.chs.blockVotes, w, req)
 }
 
 func (n *Network) handleKickValidatorVote(w http.ResponseWriter, req *http.Request) {
-
+	handleBinary(n.chs.kickValidatorVote, w, req)
 }
