@@ -1,8 +1,13 @@
 package evote
 
 import (
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"io/ioutil"
 	"net/http"
 	"strconv"
+	"time"
 )
 
 const (
@@ -28,8 +33,10 @@ type NetworkChannels struct {
 }
 
 // этими сообщениями Blockchain сообщает результаты проверки
-// может быть не string потом
-type ResponseMsg string
+type ResponseMsg struct {
+	ok    bool
+	error string
+}
 
 type Network struct {
 	chs NetworkChannels
@@ -53,45 +60,89 @@ func (n *Network) Serve() {
 	panic(err)
 }
 
-// обработчик запроса для тестов
-
-func handleInfo(w http.ResponseWriter, req *http.Request) {
-
-}
+var successResp = []byte("{\"success\":true}")
 
 // обработчики для запросов от клиентов
 
-func handleGetTx(w http.ResponseWriter, req *http.Request) {
-
+func (n *Network) handleInfo(w http.ResponseWriter, _ *http.Request) {
+	infoMsg := struct {
+		Time time.Time `json:"time"`
+	}{}
+	msg, err := json.Marshal(&infoMsg)
+	if err != nil {
+		http.Error(w, "server error"+err.Error(), http.StatusServiceUnavailable)
+		return
+	}
+	_, err = fmt.Fprint(w, msg)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		return
+	}
 }
 
-func handleGetTxsByPubKey(w http.ResponseWriter, req *http.Request) {
-
+func (n *Network) handleGetTx(w http.ResponseWriter, req *http.Request) {
+	http.Error(w, "service unavailable", http.StatusServiceUnavailable)
 }
 
-func handleGetUTXOByPubKey(w http.ResponseWriter, req *http.Request) {
-
+func (n *Network) handleGetTxsByPubKey(w http.ResponseWriter, req *http.Request) {
+	http.Error(w, "service unavailable", http.StatusServiceUnavailable)
 }
 
-func handleSubmitClientTx(w http.ResponseWriter, req *http.Request) {
+func (n *Network) handleGetUTXOByPubKey(w http.ResponseWriter, req *http.Request) {
+	http.Error(w, "service unavailable", http.StatusServiceUnavailable)
+}
 
+func (n *Network) handleSubmitClientTx(w http.ResponseWriter, req *http.Request) {
+	rawData, err := ioutil.ReadAll(req.Body)
+	if err != nil {
+		http.Error(w, "cannot read the body: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	type clientSubmitTx struct {
+		Tx string `json:"tx"`
+	}
+	var parsedData clientSubmitTx
+	err = json.Unmarshal(rawData, &parsedData)
+	if err != nil {
+		http.Error(w, "transaction required as tx field in json in body, example: {\"tx\":\"1bf12...\"}", http.StatusBadRequest)
+		return
+	}
+	tx, err := hex.DecodeString(parsedData.Tx)
+	if err != nil {
+		http.Error(w, "incorrect hex in tx: "+err.Error(), http.StatusBadRequest)
+	}
+	ch := make(chan ResponseMsg)
+	n.chs.txsClient <- NetworkMsg{
+		data:     tx,
+		from:     req.Host,
+		response: ch,
+	}
+	resp := <-ch
+	if !resp.ok {
+		http.Error(w, resp.error, http.StatusBadRequest)
+	} else {
+		_, err := fmt.Fprint(w, successResp)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		}
+	}
 }
 
 // обработчики запросов от других валидаторов
 // отличаются тем, что работают с бинарями, а так же логикой
 
-func handleSubmitServerTx(w http.ResponseWriter, req *http.Request) {
+func (n *Network) handleSubmitServerTx(w http.ResponseWriter, req *http.Request) {
 
 }
 
-func handleSubmitBlock(w http.ResponseWriter, req *http.Request) {
+func (n *Network) handleSubmitBlock(w http.ResponseWriter, req *http.Request) {
 
 }
 
-func handleBlockVote(w http.ResponseWriter, req *http.Request) {
+func (n *Network) handleBlockVote(w http.ResponseWriter, req *http.Request) {
 
 }
 
-func handleKickValidatorVote(w http.ResponseWriter, req *http.Request) {
+func (n *Network) handleKickValidatorVote(w http.ResponseWriter, req *http.Request) {
 
 }
