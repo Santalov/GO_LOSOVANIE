@@ -206,9 +206,9 @@ func (bc *Blockchain) processKick() {
 }
 
 func (bc *Blockchain) ClearBlockVoting() {
-	bc.blockVoting = make(map[[PKEY_SIZE]byte]int, 0)
+	bc.blockVoting = make(map[[PKEY_SIZE]byte]int, 0) // data race с onBlockReceive
 	for _, validator := range bc.validators {
-		bc.blockVoting[validator.pkey] = 0
+		bc.blockVoting[validator.pkey] = 0 // data race с onBlockReceive
 	}
 }
 
@@ -216,7 +216,7 @@ func (bc *Blockchain) doTick() {
 	bc.processKick()
 
 	bc.currentLeader = bc.validators[bc.chainSize%uint64(len(bc.validators))].pkey
-	bc.nextLeaderVoteTime = time.Now().Add(bc.nextLeaderPeriod)
+	bc.nextLeaderVoteTime = time.Now().Add(bc.nextLeaderPeriod) // data race witch onBlockReceive
 
 	bc.ClearBlockVoting()
 	bc.onThisCreateBlock()
@@ -260,7 +260,7 @@ func (bc *Blockchain) onThisCreateBlock() {
 	blockBytes := b.ToBytes()
 	hash := b.HashBlock(blockBytes)
 	copy(bc.currentBock.hash[:], hash)
-	bc.currentBock.b = &b
+	bc.currentBock.b = &b // data race с onBlockReceive
 
 	// послать в сеть блок
 }
