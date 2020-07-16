@@ -30,17 +30,18 @@ type Blockchain struct {
 	currentLeader        [PKEY_SIZE]byte
 	currentBock          *BlocAndkHash
 	unrecordedTrans      []TransAndHash
-	nextLeaderVoteTime   uint64
-	nextLeaderPeriod     uint64
-	blockAppendTime      uint64
+	nextLeaderVoteTime   time.Time
+	nextLeaderPeriod     time.Duration
+	blockAppendTime      time.Duration
 	chainSize            uint64
 	blockVoting          map[[PKEY_SIZE]byte]int
 	kickVoting           map[[PKEY_SIZE]byte]int
 	suspiciousValidators map[[PKEY_SIZE]byte]int
+	ticker               *time.Ticker // содержит канал, который задает цикл работы ноды
 }
 
 func (bc *Blockchain) Setup(thisPrv []byte, validators []*ValidatorNode,
-	nextVoteTime uint64, nextPeriod uint64, appendTime uint64) {
+	nextVoteTime time.Time, nextPeriod time.Duration, appendTime time.Duration) {
 	//зачатки констуруктора
 	var k CryptoKeysData
 	k.SetupKeys(thisPrv)
@@ -79,7 +80,7 @@ func (bc *Blockchain) OnBlockRecive(data []byte, sender [PKEY_SIZE]byte) {
 		// надо в сеть послать инфу, что блок гавно
 	}
 
-	bc.nextLeaderVoteTime = b.timestamp + bc.nextLeaderPeriod
+	bc.nextLeaderVoteTime = time.Unix(0, int64(b.timestamp)).Add(bc.nextLeaderPeriod)
 	copy(bc.currentBock.hash[:], hash)
 	bc.currentBock.b = &b
 
@@ -170,7 +171,7 @@ func (bc *Blockchain) DoTick() {
 	bc.ProcessKick()
 
 	bc.currentLeader = bc.validators[bc.chainSize%uint64(len(bc.validators))].pkey
-	bc.nextLeaderVoteTime = uint64(time.Now().UnixNano()) + bc.nextLeaderPeriod
+	bc.nextLeaderVoteTime = time.Now().Add(bc.nextLeaderPeriod)
 
 	bc.ClearBlockVoting()
 	bc.OnThisCreateBlock()
