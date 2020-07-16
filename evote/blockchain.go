@@ -1,6 +1,9 @@
 package evote
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 /*
 1) on block voting:
@@ -37,7 +40,10 @@ type Blockchain struct {
 	blockVoting          map[[PKEY_SIZE]byte]int
 	kickVoting           map[[PKEY_SIZE]byte]int
 	suspiciousValidators map[[PKEY_SIZE]byte]int
-	ticker               *time.Ticker // содержит канал, который задает цикл работы ноды
+	ticker               chan bool // канал, который задает цикл работы ноды
+	done                 chan bool // канал, сообщение в котором заставляет завершиться прогу
+	network              *Network
+	chs                  *NetworkChannels
 }
 
 func (bc *Blockchain) Setup(thisPrv []byte, validators []*ValidatorNode,
@@ -63,21 +69,60 @@ func (bc *Blockchain) Setup(thisPrv []byte, validators []*ValidatorNode,
 	bc.currentBock = &blockInCons
 
 	bc.chainSize = 0
-
+	bc.ticker = make(chan bool)
+	bc.done = make(chan bool)
+	bc.network = new(Network)
+	bc.chs = bc.network.Init()
 }
 
-func (bc *Blockchain) OnBlockRecive(data []byte, sender [PKEY_SIZE]byte) {
-	if sender != bc.currentLeader {
-		bc.suspiciousValidators[sender] = 1
-		// блок пришел не от лидера
-		return
+func (bc *Blockchain) Start() {
+	bc.ticker <- true
+	go bc.network.Serve() // запускаем сеть в отдельной горутине, не блокируем текущий поток
+	for {
+		// бесконечно забираем сообщения из каналов
+		select {
+		// этот код будет выбирать сообщения из того канала, в котором оно первым появится
+		// то есть одновременно будут приходить блоки, транзы и "тики",
+		// и они будут последовательно обрабатываться в этом цикле
+		// каждом каналу (то есть типу сообщений) отвечает соответсвующая секция
+		case <-bc.done: // в этот канал поступает сигнал об остановке
+			// механизм завершения не реализован
+			fmt.Println("I must stop!")
+			return
+		case <-bc.ticker:
+			go bc.DoTick() // запускаем тик в фоне, чтобы он не стопил основной цикл
+		// сам тик потом сделает bc.ticker<-true, чтобы цикл продолжился
+		case msg := <-bc.chs.blocks:
+			// нужно обработчики блоков вынести в отдельные горутины
+			bc.OnBlockRecive(msg.data, msg.response)
+		case msg := <-bc.chs.blockVotes:
+			bc.OnBlockVote(msg.data)
+			// ответ в сеть всегда положительный, голос всегда принимается
+			msg.response <- ResponseMsg{ok: true}
+		case msg := <-bc.chs.kickValidatorVote:
+			bc.OnKickValidatorVote(msg.data)
+			// ответ в сеть всегда положительный, голос всегда принимается
+			msg.response <- ResponseMsg{ok: true}
+		case msg := <-bc.chs.txsValidator:
+			// транза от валидатора
+			fmt.Println("transaction from validator", msg)
+		case msg := <-bc.chs.txsClient:
+			// транза от приложения-клиента
+			fmt.Println("transaction from client", msg)
+		}
 	}
+}
+
+func (bc *Blockchain) OnBlockRecive(data []byte, response chan ResponseMsg) {
 	var b Block
 	hash, blockLen := b.Verify(data, bc.prevBlockHash, bc.currentLeader)
 	if blockLen != len(data) {
 		bc.suspiciousValidators[bc.currentLeader] = 1
 		bc.blockVoting[bc.thisKey.pubKeyByte] = 2
-		// надо в сеть послать инфу, что блок гавно
+		response <- ResponseMsg{
+			ok:    false,
+			error: "incorrect block",
+		}
 	}
 
 	bc.nextLeaderVoteTime = time.Unix(0, int64(b.timestamp)).Add(bc.nextLeaderPeriod)
@@ -85,7 +130,7 @@ func (bc *Blockchain) OnBlockRecive(data []byte, sender [PKEY_SIZE]byte) {
 	bc.currentBock.b = &b
 
 	bc.blockVoting[bc.thisKey.pubKeyByte] = 1
-	// надо в сеть послать инфу, что блок ok
+	response <- ResponseMsg{ok: true}
 }
 
 func (bc *Blockchain) OnBlockVote(data []byte) {
@@ -205,7 +250,8 @@ func (bc *Blockchain) DoTick() {
 			//vote kick
 		}
 	}
-
+	// здесь типо нужно подождать до следующего тика перед отправкой сообщения в канал
+	bc.ticker <- true
 }
 
 func (bc *Blockchain) OnThisCreateBlock() {
