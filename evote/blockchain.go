@@ -17,40 +17,45 @@ if (vote > 1) then process kick start
 0 <= vote <= len(validatePkeys)
 */
 
+type ValidatorNode struct {
+	pkey [PKEY_SIZE]byte
+	addr string // адрес вида 1.1.1.1:1337
+}
+
 type Blockchain struct {
-	thisKey *CryptoKeysData
-	validatePkeys [][PKEY_SIZE]byte
-	prevBlockHash [HASH_SIZE]byte
-	prevBlockHashes [MAX_PREV_BLOCK_HASHES][HASH_SIZE]byte
-	currentLeader [PKEY_SIZE]byte
-	currentBock *BlocAndkHash
-	unrecordedTrans []TransAndHash
-	nextLeaderVoteTime uint64
-	nextLeaderPeriod uint64
-	blockAppendTime uint64
-	chainSize uint64
-	blockVoting map[[PKEY_SIZE]byte]int
-	kickVoting map[[PKEY_SIZE]byte]int
+	thisKey              *CryptoKeysData
+	validators           []ValidatorNode
+	prevBlockHash        [HASH_SIZE]byte
+	prevBlockHashes      [MAX_PREV_BLOCK_HASHES][HASH_SIZE]byte
+	currentLeader        [PKEY_SIZE]byte
+	currentBock          *BlocAndkHash
+	unrecordedTrans      []TransAndHash
+	nextLeaderVoteTime   uint64
+	nextLeaderPeriod     uint64
+	blockAppendTime      uint64
+	chainSize            uint64
+	blockVoting          map[[PKEY_SIZE]byte]int
+	kickVoting           map[[PKEY_SIZE]byte]int
 	suspiciousValidators map[[PKEY_SIZE]byte]int
 }
 
-func (bc *Blockchain) Setup(thisPrv []byte, pkeys [][PKEY_SIZE]byte,
-	nextVoteTime uint64, nextPeriod uint64, appendTime uint64)  {
+func (bc *Blockchain) Setup(thisPrv []byte, validators []ValidatorNode,
+	nextVoteTime uint64, nextPeriod uint64, appendTime uint64) {
 	//зачатки констуруктора
 	var k CryptoKeysData
 	k.SetupKeys(thisPrv)
 	bc.thisKey = &k
 
-	bc.validatePkeys = pkeys
+	bc.validators = validators
 
 	bc.nextLeaderVoteTime = nextVoteTime
 	bc.nextLeaderPeriod = nextPeriod
 	bc.blockAppendTime = appendTime
 
-	for _, pkey := range bc.validatePkeys {
-		bc.blockVoting[pkey] = 0
-		bc.kickVoting[pkey] = 0
-		bc.suspiciousValidators[pkey] = 0
+	for _, validator := range bc.validators {
+		bc.blockVoting[validator.pkey] = 0
+		bc.kickVoting[validator.pkey] = 0
+		bc.suspiciousValidators[validator.pkey] = 0
 	}
 
 	var blockInCons BlocAndkHash
@@ -83,7 +88,7 @@ func (bc *Blockchain) OnBlockRecive(data []byte, sender [PKEY_SIZE]byte) {
 }
 
 func (bc *Blockchain) OnBlockVote(data []byte) {
-	if len(data) != HASH_SIZE + PKEY_SIZE + 1 {
+	if len(data) != HASH_SIZE+PKEY_SIZE+1 {
 		return
 	}
 	var hash [HASH_SIZE]byte
@@ -100,7 +105,7 @@ func (bc *Blockchain) OnBlockVote(data []byte) {
 	}
 }
 
-func (bc *Blockchain) OnKickValidatorVote(data []byte)  {
+func (bc *Blockchain) OnKickValidatorVote(data []byte) {
 	if len(data) != PKEY_SIZE {
 		return
 	}
@@ -113,7 +118,7 @@ func (bc *Blockchain) OnKickValidatorVote(data []byte)  {
 }
 
 func (bc *Blockchain) UpdatePrevHashBlock() {
-	for i := MAX_PREV_BLOCK_HASHES-1; i >= 1; i-- {
+	for i := MAX_PREV_BLOCK_HASHES - 1; i >= 1; i-- {
 		bc.prevBlockHashes[i] = bc.prevBlockHashes[i-1]
 	}
 	bc.prevBlockHashes[0] = bc.currentBock.hash
@@ -139,33 +144,32 @@ func (bc *Blockchain) UpdateUnrecordedTrans() {
 
 func (bc *Blockchain) ProcessKick() {
 	for k, v := range bc.kickVoting {
-		if float32(v)/float32(len(bc.validatePkeys)) > 0.5 {
-			for i, pkey := range bc.validatePkeys {
-				if pkey == k {
-					bc.validatePkeys = append(bc.validatePkeys[:i], bc.validatePkeys[i+1:]...)
+		if float32(v)/float32(len(bc.validators)) > 0.5 {
+			for i, validator := range bc.validators {
+				if validator.pkey == k {
+					bc.validators = append(bc.validators[:i], bc.validators[i+1:]...)
 					break
 				}
 			}
 		}
 	}
 	bc.kickVoting = make(map[[PKEY_SIZE]byte]int, 0)
-	for _, pkey := range bc.validatePkeys {
-		bc.kickVoting[pkey] = 0
+	for _, validator := range bc.validators {
+		bc.kickVoting[validator.pkey] = 0
 	}
 }
 
-
 func (bc *Blockchain) ClearBlockVoting() {
 	bc.blockVoting = make(map[[PKEY_SIZE]byte]int, 0)
-	for _, pkey := range bc.validatePkeys {
-		bc.blockVoting[pkey] = 0
+	for _, validator := range bc.validators {
+		bc.blockVoting[validator.pkey] = 0
 	}
 }
 
 func (bc *Blockchain) DoTick() {
 	bc.ProcessKick()
 
-	bc.currentLeader = bc.validatePkeys[bc.chainSize % uint64(len(bc.validatePkeys))]
+	bc.currentLeader = bc.validators[bc.chainSize%uint64(len(bc.validators))].pkey
 	bc.nextLeaderVoteTime = uint64(time.Now().UnixNano()) + bc.nextLeaderPeriod
 
 	bc.ClearBlockVoting()
@@ -200,7 +204,6 @@ func (bc *Blockchain) DoTick() {
 			//vote kick
 		}
 	}
-
 
 }
 
