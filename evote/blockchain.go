@@ -24,7 +24,7 @@ type ValidatorNode struct {
 
 type Blockchain struct {
 	thisKey              *CryptoKeysData
-	validators           []ValidatorNode
+	validators           []*ValidatorNode
 	prevBlockHash        [HASH_SIZE]byte
 	prevBlockHashes      [MAX_PREV_BLOCK_HASHES][HASH_SIZE]byte
 	currentLeader        [PKEY_SIZE]byte
@@ -39,7 +39,7 @@ type Blockchain struct {
 	suspiciousValidators map[[PKEY_SIZE]byte]int
 }
 
-func (bc *Blockchain) Setup(thisPrv []byte, validators []ValidatorNode,
+func (bc *Blockchain) Setup(thisPrv []byte, validators []*ValidatorNode,
 	nextVoteTime uint64, nextPeriod uint64, appendTime uint64) {
 	//зачатки констуруктора
 	var k CryptoKeysData
