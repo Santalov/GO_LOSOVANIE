@@ -157,7 +157,7 @@ func (bc *Blockchain) onBlockReceive(data []byte, response chan ResponseMsg) {
 	copy(voteData[HASH_SIZE+PKEY_SIZE:HASH_SIZE+PKEY_SIZE+1], voteData[:])
 	copy(voteData[HASH_SIZE+PKEY_SIZE+1:], ZERO_ARRAY_SIG[:])
 	copy(voteData[HASH_SIZE+PKEY_SIZE+1:], bc.thisKey.Sign(voteData[:]))
-	//send vote
+	bc.network.SendVoteToAll(bc.hostsExceptMe, voteData[:])
 	response <- ResponseMsg{ok: true}
 }
 
