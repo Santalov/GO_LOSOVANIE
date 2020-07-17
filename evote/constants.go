@@ -31,17 +31,9 @@ var SPECIAL_PKEY = [PKEY_SIZE]byte{
 	0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
 }
 
-var ZERO_ARRAY_HASH = [HASH_SIZE]byte{
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-}
+var ZERO_ARRAY_HASH = [HASH_SIZE]byte{}
 
-var ZERO_ARRAY_SIG = [SIG_SIZE]byte{
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-}
+var ZERO_ARRAY_SIG = [SIG_SIZE]byte{}
 
 // network vars
 const (
