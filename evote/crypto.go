@@ -42,7 +42,7 @@ func (keys *CryptoKeysData) Sign(hash []byte) []byte {
 	return res
 }
 
-func VerifyTransaction(trans, signature []byte, pkey [PKEY_SIZE]byte) bool {
+func VerifyData(data, signature []byte, pkey [PKEY_SIZE]byte) bool {
 	var pkeyX = pkey[1:]
 	for i, j := 0, len(pkeyX)-1; i < j; i, j = i+1, j-1 {
 		pkeyX[i], pkeyX[j] = pkeyX[j], pkeyX[i]
@@ -73,7 +73,7 @@ func VerifyTransaction(trans, signature []byte, pkey [PKEY_SIZE]byte) bool {
 	key.Mode = gost3410.Mode2001
 	key.X = x
 	key.Y = y
-	var digest = Hash(trans)
+	var digest = Hash(data)
 	res, _ := key.VerifyDigest(digest, signature)
 	return res
 }

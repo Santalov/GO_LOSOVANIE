@@ -173,7 +173,7 @@ func (t *Transaction) Verify(data []byte) ([]byte, int) {
 		return nil, ERR_TRANS_VERIFY
 	}
 
-	if !VerifyTransaction(data[:transSize - SIG_SIZE], t.signature[:], pkey) {
+	if !VerifyData(data[:transSize - SIG_SIZE], t.signature[:], pkey) {
 		return nil, ERR_TRANS_VERIFY
 	}
 	return Hash(data[:transSize]), transSize

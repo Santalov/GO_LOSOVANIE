@@ -102,11 +102,11 @@ func (bc *Blockchain) Start() {
 			// нужно обработчики блоков вынести в отдельные горутины
 			bc.onBlockReceive(msg.data, msg.response)
 		case msg := <-bc.chs.blockVotes:
-			bc.onBlockVote(msg.data)
+			bc.onBlockVote(msg.data, msg.response)
 			// ответ в сеть всегда положительный, голос всегда принимается
 			msg.response <- ResponseMsg{ok: true}
 		case msg := <-bc.chs.kickValidatorVote:
-			bc.onKickValidatorVote(msg.data)
+			bc.onKickValidatorVote(msg.data, msg.response)
 			// ответ в сеть всегда положительный, голос всегда принимается
 			msg.response <- ResponseMsg{ok: true}
 		case msg := <-bc.chs.txsValidator:
@@ -151,34 +151,62 @@ func (bc *Blockchain) onBlockReceive(data []byte, response chan ResponseMsg) {
 	response <- ResponseMsg{ok: true}
 }
 
-func (bc *Blockchain) onBlockVote(data []byte) {
-	if len(data) != HASH_SIZE+PKEY_SIZE+1 {
+func (bc *Blockchain) onBlockVote(data []byte, response chan ResponseMsg) {
+	if len(data) != HASH_SIZE+PKEY_SIZE+1+SIG_SIZE {
 		return
 	}
 	var hash [HASH_SIZE]byte
 	var pkey [PKEY_SIZE]byte
 	var vote [1]byte
+	var sig [SIG_SIZE]byte
 	copy(hash[:], data[:HASH_SIZE])
 	copy(pkey[:], data[HASH_SIZE:PKEY_SIZE])
 	copy(vote[:], data[HASH_SIZE+PKEY_SIZE:])
+	copy(sig[:], data[HASH_SIZE+PKEY_SIZE+1:])
 	_, ok := bc.blockVoting[pkey]
-	if hash == bc.prevBlockHash && ok {
-		if vote[0] == 0x01 || vote[0] == 0x02 {
-			bc.blockVoting[pkey] = int(vote[0])
+	if !ok || !VerifyData(data[:HASH_SIZE+PKEY_SIZE+1], sig[:], pkey) {
+		response <- ResponseMsg{
+			ok:    false,
+			error: "unknown block vote sender",
 		}
+		return
 	}
+	if hash == bc.prevBlockHash && (vote[0] == 0x01 || vote[0] == 0x02) {
+			bc.blockVoting[pkey] = int(vote[0])
+	} else {
+		response <- ResponseMsg{
+			ok:    false,
+			error: "incorrect block vote data",
+		}
+		return
+	}
+	response <- ResponseMsg{ok: true}
 }
 
-func (bc *Blockchain) onKickValidatorVote(data []byte) {
-	if len(data) != PKEY_SIZE {
+func (bc *Blockchain) onKickValidatorVote(data []byte, response chan ResponseMsg) {
+	if len(data) != PKEY_SIZE*2+SIG_SIZE {
 		return
 	}
 	var kickPkey [PKEY_SIZE]byte
-	copy(kickPkey[:], data)
+	var senderPkey [PKEY_SIZE]byte
+	var sig[SIG_SIZE]byte
+	copy(kickPkey[:], data[:PKEY_SIZE])
+	copy(senderPkey[:], data[PKEY_SIZE:PKEY_SIZE])
+	copy(sig[:], data[PKEY_SIZE*2:])
+	_, ok := bc.kickVoting[senderPkey]
+	if !ok || !VerifyData(data[:PKEY_SIZE*2], sig[:], senderPkey) {
+		response <- ResponseMsg{
+			ok:    false,
+			error: "unknown kick vote sender",
+		}
+		return
+	}
 	if kickPkey == bc.thisKey.pubKeyByte {
+		response <- ResponseMsg{ok: true}
 		return
 	}
 	bc.kickVoting[kickPkey] += 1
+	response <- ResponseMsg{ok: true}
 }
 
 func (bc *Blockchain) updatePrevHashBlock() {
@@ -234,10 +262,10 @@ func (bc *Blockchain) doTick() {
 	bc.processKick()
 
 	bc.currentLeader = bc.validators[bc.chainSize%uint64(len(bc.validators))].pkey
+	bc.nextLeaderVoteTime = time.Now().Add(bc.nextLeaderPeriod)
 
 	if bc.thisKey.pubKeyByte == bc.currentLeader {
 		bc.expectBlocks = true
-		bc.nextLeaderVoteTime = time.Now().Add(bc.nextLeaderPeriod)
 		bc.onThisCreateBlock()
 	}
 
@@ -248,7 +276,7 @@ func (bc *Blockchain) doTick() {
 		if vote == 0 {
 			bc.suspiciousValidators[pkey] += 1
 			if bc.suspiciousValidators[pkey] > 1 {
-				//vote kick
+				bc.voteKickValidator(pkey)
 			}
 			noVote += 1
 		} else if vote == 1 {
@@ -267,7 +295,7 @@ func (bc *Blockchain) doTick() {
 	} else if bc.currentLeader != bc.thisKey.pubKeyByte {
 		bc.suspiciousValidators[bc.currentLeader] += 1
 		if bc.suspiciousValidators[bc.currentLeader] > 1 {
-			//vote kick
+			bc.voteKickValidator(bc.currentLeader)
 		}
 	}
 	bc.ClearBlockVoting()   // чистим голоса за блок до начала получения новых блоков
@@ -289,4 +317,11 @@ func (bc *Blockchain) onThisCreateBlock() {
 
 func (bc *Blockchain) voteKickValidator(pkey [PKEY_SIZE]byte) {
 	bc.kickVoting[pkey] += 1
+	var data []byte
+	data = append(data, pkey[:]...)
+	data = append(data, bc.thisKey.pubKeyByte[:]...)
+	data = append(data, ZERO_ARRAY_SIG[:]...)
+	copy(data[PKEY_SIZE*2:], bc.thisKey.Sign(data))
+	//send vote
+
 }
