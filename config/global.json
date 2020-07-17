@@ -1,0 +1,14 @@
+{
+  "validators": [
+    {
+      "pkey": "03aafe635e62010599a147ec5ef0427a08f172a9491de139fe98de1fdcf33a4b55",
+      "addr": "localhost:37110"
+    },
+    {
+      "pkey": "0302658d7124c19d54a8a12028535c2db400935b03e665681e3f97ac0600ef0f47",
+      "addr": "localhost:37111"
+    }
+  ],
+  "next_leader_period": 300000000000,
+  "block_append_time": 100000000000
+}
