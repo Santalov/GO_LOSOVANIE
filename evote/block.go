@@ -57,6 +57,7 @@ func (b *Block) CheckMiningReward(data []byte, creator [PKEY_SIZE]byte) ([]byte,
 	}
 
 	var pkey = t.outputs[0].pkeyTo
+	fmt.Println("pkey and creator", pkey, creator)
 	if pkey != creator {
 		return nil, nil, ERR_BLOCK_CREATOR
 	}

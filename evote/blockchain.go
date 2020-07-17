@@ -86,12 +86,12 @@ func (bc *Blockchain) Setup(thisPrv []byte, thisAddr string, validators []*Valid
 	bc.done = make(chan bool, 1)
 	bc.network = new(Network)
 	bc.chs = bc.network.Init()
+	bc.expectBlocks = false
 }
 
 func (bc *Blockchain) Start() {
 	bc.ticker <- true
 	go bc.network.Serve(bc.thisAddr) // запускаем сеть в отдельной горутине, не блокируем текущий поток
-	time.Sleep(10 * time.Second)
 	for {
 		// бесконечно забираем сообщения из каналов
 		select {
@@ -137,6 +137,7 @@ func (bc *Blockchain) onBlockReceive(data []byte, response chan ResponseMsg) {
 	}
 	var b Block
 	hash, blockLen := b.Verify(data, bc.prevBlockHash, bc.currentLeader)
+	fmt.Println("block len", blockLen)
 	if blockLen == ERR_BLOCK_CREATOR {
 		response <- ResponseMsg{ok: true}
 		return
@@ -287,9 +288,14 @@ func (bc *Blockchain) doTick() {
 	bc.currentLeader = bc.validators[bc.chainSize%uint64(len(bc.validators))].pkey
 	bc.nextLeaderVoteTime = time.Now().Add(bc.nextLeaderPeriod)
 
+	if bc.expectBlocks == false {
+		bc.expectBlocks = true
+		time.Sleep(10 * time.Second)
+	}
+
 	if bc.thisKey.pubKeyByte == bc.currentLeader {
 		fmt.Println("this == leader")
-		bc.expectBlocks = true
+		bc.expectBlocks = false
 		bc.onThisCreateBlock()
 	}
 
@@ -328,8 +334,8 @@ func (bc *Blockchain) doTick() {
 		}
 	}
 	fmt.Println("clear block voting")
-	bc.ClearBlockVoting()   // чистим голоса за блок до начала получения новых блоков
-	bc.expectBlocks = false // меняем флаг заранее, чтобы не пропустить блок
+	bc.ClearBlockVoting()  // чистим голоса за блок до начала получения новых блоков
+	bc.expectBlocks = true // меняем флаг заранее, чтобы не пропустить блок
 	timeBeforeNextTick := bc.nextLeaderVoteTime.Sub(time.Now())
 	fmt.Println("time before next tick", timeBeforeNextTick)
 	time.Sleep(timeBeforeNextTick)
