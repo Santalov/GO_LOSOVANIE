@@ -55,6 +55,7 @@ func (bc *Blockchain) Setup(thisPrv []byte, thisAddr string, validators []*Valid
 	var k CryptoKeysData
 	k.SetupKeys(thisPrv)
 	bc.thisKey = &k
+	bc.thisAddr = thisAddr
 
 	bc.validators = validators
 
@@ -81,8 +82,8 @@ func (bc *Blockchain) Setup(thisPrv []byte, thisAddr string, validators []*Valid
 	bc.prevBlockHash = startBlockHash
 
 	bc.chainSize = 0
-	bc.ticker = make(chan bool)
-	bc.done = make(chan bool)
+	bc.ticker = make(chan bool, 1)
+	bc.done = make(chan bool, 1)
 	bc.network = new(Network)
 	bc.chs = bc.network.Init()
 }
