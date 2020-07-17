@@ -55,6 +55,7 @@ func (bc *Blockchain) Setup(thisPrv []byte, thisAddr string, validators []*Valid
 	var k CryptoKeysData
 	k.SetupKeys(thisPrv)
 	bc.thisKey = &k
+	bc.thisAddr = thisAddr
 
 	bc.validators = validators
 
@@ -81,8 +82,8 @@ func (bc *Blockchain) Setup(thisPrv []byte, thisAddr string, validators []*Valid
 	bc.prevBlockHash = startBlockHash
 
 	bc.chainSize = 0
-	bc.ticker = make(chan bool)
-	bc.done = make(chan bool)
+	bc.ticker = make(chan bool, 1)
+	bc.done = make(chan bool, 1)
 	bc.network = new(Network)
 	bc.chs = bc.network.Init()
 }
@@ -103,14 +104,18 @@ func (bc *Blockchain) Start() {
 			fmt.Println("I must stop!")
 			return
 		case <-bc.ticker:
+			fmt.Println("Do tick")
 			go bc.doTick() // запускаем тик в фоне, чтобы он не стопил основной цикл
 		// сам тик потом сделает bc.ticker<-true, чтобы цикл продолжился
 		case msg := <-bc.chs.blocks:
 			// нужно обработчики блоков вынести в отдельные горутины
+			fmt.Println("got new block")
 			bc.onBlockReceive(msg.data, msg.response)
 		case msg := <-bc.chs.blockVotes:
+			fmt.Println("got block vote")
 			bc.onBlockVote(msg.data, msg.response)
 		case msg := <-bc.chs.kickValidatorVote:
+			fmt.Println("got kick validator vote")
 			bc.onKickValidatorVote(msg.data, msg.response)
 		case msg := <-bc.chs.txsValidator:
 			// транза от валидатора
@@ -276,18 +281,23 @@ func (bc *Blockchain) ClearBlockVoting() {
 }
 
 func (bc *Blockchain) doTick() {
+	fmt.Println("process kick")
 	bc.processKick()
 
 	bc.currentLeader = bc.validators[bc.chainSize%uint64(len(bc.validators))].pkey
 	bc.nextLeaderVoteTime = time.Now().Add(bc.nextLeaderPeriod)
 
 	if bc.thisKey.pubKeyByte == bc.currentLeader {
+		fmt.Println("this == leader")
 		bc.expectBlocks = true
 		bc.onThisCreateBlock()
 	}
 
-	time.Sleep(bc.nextLeaderVoteTime.Add(-bc.blockAppendTime).Sub(time.Now()))
+	timeWhileBlockIsReceived := bc.nextLeaderVoteTime.Add(-bc.blockAppendTime).Sub(time.Now())
+	fmt.Println("sleeping for ", timeWhileBlockIsReceived)
+	time.Sleep(timeWhileBlockIsReceived)
 
+	fmt.Println("process voting")
 	yesVote, noVote := 0, 0
 	for pkey, vote := range bc.blockVoting {
 		if vote == 0 {
@@ -305,19 +315,24 @@ func (bc *Blockchain) doTick() {
 	}
 
 	if noVote < yesVote {
+		fmt.Println("block accepted")
 		bc.updatePrevHashBlock()
 		//запись блока в БД
 		bc.updateUnrecordedTrans()
 		bc.chainSize += 1
 	} else if bc.currentLeader != bc.thisKey.pubKeyByte {
+		fmt.Println("block rejected")
 		bc.suspiciousValidators[bc.currentLeader] += 1
 		if bc.suspiciousValidators[bc.currentLeader] > 1 {
 			bc.voteKickValidator(bc.currentLeader)
 		}
 	}
+	fmt.Println("clear block voting")
 	bc.ClearBlockVoting()   // чистим голоса за блок до начала получения новых блоков
 	bc.expectBlocks = false // меняем флаг заранее, чтобы не пропустить блок
-	time.Sleep(bc.nextLeaderVoteTime.Sub(time.Now()))
+	timeBeforeNextTick := bc.nextLeaderVoteTime.Sub(time.Now())
+	fmt.Println("time before next tick", timeBeforeNextTick)
+	time.Sleep(timeBeforeNextTick)
 	bc.ticker <- true
 }
 
