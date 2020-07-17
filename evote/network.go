@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"strconv"
 	"time"
 )
 
@@ -68,8 +67,9 @@ func (n *Network) Init() *NetworkChannels {
 }
 
 // Serve запускает сервер и блокирует поток, перед вызовом Serve надо вызвать Init
-func (n *Network) Serve() {
-	err := http.ListenAndServe(":"+strconv.Itoa(PORT), nil)
+func (n *Network) Serve(addr string) {
+	fmt.Println("Starting server at ", addr)
+	err := http.ListenAndServe(addr, nil)
 	panic(err)
 }
 

@@ -27,6 +27,7 @@ type ValidatorNode struct {
 
 type Blockchain struct {
 	thisKey              *CryptoKeysData
+	thisAddr             string
 	validators           []*ValidatorNode
 	hostsExceptMe        []string // массив адресов вида 1.1.1.1:1337
 	prevBlockHash        [HASH_SIZE]byte
@@ -48,9 +49,9 @@ type Blockchain struct {
 	expectBlocks         bool
 }
 
-func (bc *Blockchain) Setup(thisPrv []byte, validators []*ValidatorNode,
+func (bc *Blockchain) Setup(thisPrv []byte, thisAddr string, validators []*ValidatorNode,
 	nextVoteTime time.Time, nextPeriod time.Duration, appendTime time.Duration, startBlockHash [HASH_SIZE]byte) {
-	//зачатки констуруктора
+	//зачатки констуруктора q
 	var k CryptoKeysData
 	k.SetupKeys(thisPrv)
 	bc.thisKey = &k
@@ -61,6 +62,10 @@ func (bc *Blockchain) Setup(thisPrv []byte, validators []*ValidatorNode,
 	bc.nextLeaderPeriod = nextPeriod
 	bc.blockAppendTime = appendTime
 	bc.hostsExceptMe = make([]string, len(bc.validators)-1)
+
+	bc.blockVoting = make(map[[PKEY_SIZE]byte]int)
+	bc.kickVoting = make(map[[PKEY_SIZE]byte]int)
+	bc.suspiciousValidators = make(map[[PKEY_SIZE]byte]int)
 
 	for _, validator := range bc.validators {
 		bc.blockVoting[validator.pkey] = 0
@@ -84,7 +89,7 @@ func (bc *Blockchain) Setup(thisPrv []byte, validators []*ValidatorNode,
 
 func (bc *Blockchain) Start() {
 	bc.ticker <- true
-	go bc.network.Serve() // запускаем сеть в отдельной горутине, не блокируем текущий поток
+	go bc.network.Serve(bc.thisAddr) // запускаем сеть в отдельной горутине, не блокируем текущий поток
 	time.Sleep(10 * time.Second)
 	for {
 		// бесконечно забираем сообщения из каналов

@@ -2,20 +2,21 @@ package evote
 
 import (
 	"encoding/binary"
+	"fmt"
 	"time"
 )
 
 type BlocAndkHash struct {
-	b *Block
+	b    *Block
 	hash [HASH_SIZE]byte
 }
 
 type Block struct {
 	prevBlockHash [HASH_SIZE]byte
-	merkleTree [HASH_SIZE]byte
-	timestamp uint64
-	transSize uint32
-	trans []TransAndHash
+	merkleTree    [HASH_SIZE]byte
+	timestamp     uint64
+	transSize     uint32
+	trans         []TransAndHash
 }
 
 func (b *Block) ToBytes() []byte {
@@ -38,9 +39,9 @@ func (b *Block) FromBytes(data []byte) int {
 	copy(b.prevBlockHash[:], data[:offset])
 	copy(b.merkleTree[:], data[offset:offset+HASH_SIZE])
 	offset += HASH_SIZE
-	b.timestamp = binary.LittleEndian.Uint64(data[offset:offset+INT_32_SIZE*2])
-	offset += INT_32_SIZE*2
-	b.transSize = binary.LittleEndian.Uint32(data[offset:offset+INT_32_SIZE])
+	b.timestamp = binary.LittleEndian.Uint64(data[offset : offset+INT_32_SIZE*2])
+	offset += INT_32_SIZE * 2
+	b.transSize = binary.LittleEndian.Uint32(data[offset : offset+INT_32_SIZE])
 	return OK
 }
 
@@ -63,6 +64,7 @@ func (b *Block) CheckMiningReward(data []byte, creator [PKEY_SIZE]byte) ([]byte,
 		return nil, nil, ERR_TRANS_VERIFY
 	}
 
+	fmt.Println("checkMiningReward: creator ", creator)
 	return Hash(data[:transLen]), &t, transLen
 
 }
@@ -83,11 +85,11 @@ func (b *Block) CreateMiningReward(keys *CryptoKeysData) TransAndHash {
 	copy(t.signature[:], keys.Sign(t.ToBytes()))
 	var minigReward TransAndHash
 	minigReward.transaction = &t
-	copy(minigReward.hash[:],Hash(t.ToBytes()))
+	copy(minigReward.hash[:], Hash(t.ToBytes()))
 	return minigReward
 }
 
-func (b *Block) BuildMerkleTree() [HASH_SIZE]byte  {
+func (b *Block) BuildMerkleTree() [HASH_SIZE]byte {
 	var hashes [][]byte
 	for _, t := range b.trans {
 		hashes = append(hashes, t.hash[:])
@@ -98,11 +100,11 @@ func (b *Block) BuildMerkleTree() [HASH_SIZE]byte  {
 		if lenHashes == 1 {
 			break
 		}
-		if lenHashes % 2 != 0 {
-			hashes = append(hashes, hashes[lenHashes - 1])
+		if lenHashes%2 != 0 {
+			hashes = append(hashes, hashes[lenHashes-1])
 		}
 		lenHashes = len(hashes)
-		for i := 0; i < lenHashes; i+=2 {
+		for i := 0; i < lenHashes; i += 2 {
 			nextHashes = append(nextHashes, Hash(append(hashes[i], hashes[i+1]...)))
 		}
 		hashes = nextHashes
@@ -126,12 +128,12 @@ func (b *Block) CreateBlock(t []TransAndHash, prevHash [HASH_SIZE]byte, key *Cry
 }
 
 func (b *Block) Verify(data []byte, prevHash [HASH_SIZE]byte,
-	creator [PKEY_SIZE]byte)  ([]byte, int) {
+	creator [PKEY_SIZE]byte) ([]byte, int) {
 	if len(data) > MAX_BLOCK_SIZE {
 		return nil, ERR_BLOCK_VERIFY
 	}
 	if b.FromBytes(data) != OK || prevHash != b.prevBlockHash ||
-			b.transSize == 0 {
+		b.transSize == 0 {
 		return nil, ERR_BLOCK_VERIFY
 	}
 	var blockLen = MIN_BLOCK_SIZE

@@ -20,7 +20,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	fmt.Printf("%+v \n %+v\n", gConf, lConf)
 	bc := new(evote.Blockchain)
-	bc.Setup(lConf.Prv, gConf.Validators, time.Now(), gConf.NextLeaderPeriod, gConf.BlockAppendTime, evote.ZERO_ARRAY_HASH)
+	bc.Setup(lConf.Prv, lConf.Addr, gConf.Validators, time.Now(), gConf.NextLeaderPeriod, gConf.BlockAppendTime, evote.ZERO_ARRAY_HASH)
+	bc.Start()
 }
