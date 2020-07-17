@@ -56,7 +56,10 @@ func (b *Block) CheckMiningReward(data []byte, creator [PKEY_SIZE]byte) ([]byte,
 	}
 
 	var pkey = t.outputs[0].pkeyTo
-	if pkey != creator || !VerifyTransaction(data[:transLen-SIG_SIZE], t.signature[:], pkey) {
+	if pkey != creator {
+		return nil, nil, ERR_BLOCK_CREATOR
+	}
+	if !VerifyTransaction(data[:transLen-SIG_SIZE], t.signature[:], pkey) {
 		return nil, nil, ERR_TRANS_VERIFY
 	}
 
@@ -135,7 +138,7 @@ func (b *Block) Verify(data []byte, prevHash [HASH_SIZE]byte,
 	var transData = data[MIN_BLOCK_SIZE:]
 	var hash, trans, transLen = b.CheckMiningReward(transData, creator)
 	if transLen < 0 {
-		return nil, ERR_BLOCK_VERIFY
+		return nil, transLen
 	}
 	var transHash TransAndHash
 	copy(transHash.hash[:], hash)

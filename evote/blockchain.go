@@ -116,6 +116,9 @@ func (bc *Blockchain) Start() {
 func (bc *Blockchain) onBlockReceive(data []byte, response chan ResponseMsg) {
 	var b Block
 	hash, blockLen := b.Verify(data, bc.prevBlockHash, bc.currentLeader)
+	if blockLen == ERR_BLOCK_CREATOR {
+		response <- ResponseMsg{ok: true}
+	}
 	if blockLen != len(data) {
 		bc.suspiciousValidators[bc.currentLeader] = 1
 		bc.blockVoting[bc.thisKey.pubKeyByte] = 2

@@ -7,6 +7,7 @@ const (
 	ERR_TRANS_VERIFY = -2
 	ERR_BLOCK_SIZE   = -3
 	ERR_BLOCK_VERIFY = -4
+	ERR_BLOCK_CREATOR = -5
 )
 
 //size consts
