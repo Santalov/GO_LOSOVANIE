@@ -73,7 +73,7 @@ func VerifyData(data, signature []byte, pkey [PKEY_SIZE]byte) bool {
 	key.Mode = gost3410.Mode2001
 	key.X = x
 	key.Y = y
-	var digest = Hash(data)
+	var digest = Hash(append(data, ZERO_ARRAY_SIG[:]...))
 	res, _ := key.VerifyDigest(digest, signature)
 	return res
 }
