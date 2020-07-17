@@ -103,12 +103,8 @@ func (bc *Blockchain) Start() {
 			bc.onBlockReceive(msg.data, msg.response)
 		case msg := <-bc.chs.blockVotes:
 			bc.onBlockVote(msg.data, msg.response)
-			// ответ в сеть всегда положительный, голос всегда принимается
-			msg.response <- ResponseMsg{ok: true}
 		case msg := <-bc.chs.kickValidatorVote:
 			bc.onKickValidatorVote(msg.data, msg.response)
-			// ответ в сеть всегда положительный, голос всегда принимается
-			msg.response <- ResponseMsg{ok: true}
 		case msg := <-bc.chs.txsValidator:
 			// транза от валидатора
 			fmt.Println("transaction from validator", msg)
@@ -133,9 +129,18 @@ func (bc *Blockchain) onBlockReceive(data []byte, response chan ResponseMsg) {
 		response <- ResponseMsg{ok: true}
 		return
 	}
+	var voteData []byte
+	voteData = append(voteData, bc.prevBlockHash[:]...)
+	voteData = append(voteData, bc.thisKey.pubKeyByte[:]...)
+	var vote [1]byte
 	if blockLen != len(data) {
 		bc.suspiciousValidators[bc.currentLeader] = 1
 		bc.blockVoting[bc.thisKey.pubKeyByte] = 2
+		vote[0] = 0x02
+		voteData = append(voteData, voteData[:]...)
+		voteData = append(voteData, ZERO_ARRAY_SIG[:]...)
+		copy(voteData[HASH_SIZE+PKEY_SIZE+1:], bc.thisKey.Sign(voteData))
+		bc.network.SendVoteToAll(bc.hostsExceptMe, voteData)
 		response <- ResponseMsg{
 			ok:    false,
 			error: "incorrect block",
@@ -148,6 +153,11 @@ func (bc *Blockchain) onBlockReceive(data []byte, response chan ResponseMsg) {
 	bc.currentBock.b = &b
 
 	bc.blockVoting[bc.thisKey.pubKeyByte] = 1
+	vote[0] = 0x01
+	voteData = append(voteData, voteData[:]...)
+	voteData = append(voteData, ZERO_ARRAY_SIG[:]...)
+	copy(voteData[HASH_SIZE+PKEY_SIZE+1:], bc.thisKey.Sign(voteData))
+	//send vote
 	response <- ResponseMsg{ok: true}
 }
 
@@ -161,7 +171,7 @@ func (bc *Blockchain) onBlockVote(data []byte, response chan ResponseMsg) {
 	var sig [SIG_SIZE]byte
 	copy(hash[:], data[:HASH_SIZE])
 	copy(pkey[:], data[HASH_SIZE:PKEY_SIZE])
-	copy(vote[:], data[HASH_SIZE+PKEY_SIZE:])
+	copy(vote[:], data[HASH_SIZE+PKEY_SIZE:HASH_SIZE+PKEY_SIZE+1])
 	copy(sig[:], data[HASH_SIZE+PKEY_SIZE+1:])
 	_, ok := bc.blockVoting[pkey]
 	if !ok || !VerifyData(data[:HASH_SIZE+PKEY_SIZE+1], sig[:], pkey) {
@@ -172,7 +182,7 @@ func (bc *Blockchain) onBlockVote(data []byte, response chan ResponseMsg) {
 		return
 	}
 	if hash == bc.prevBlockHash && (vote[0] == 0x01 || vote[0] == 0x02) {
-			bc.blockVoting[pkey] = int(vote[0])
+		bc.blockVoting[pkey] = int(vote[0])
 	} else {
 		response <- ResponseMsg{
 			ok:    false,
@@ -189,7 +199,7 @@ func (bc *Blockchain) onKickValidatorVote(data []byte, response chan ResponseMsg
 	}
 	var kickPkey [PKEY_SIZE]byte
 	var senderPkey [PKEY_SIZE]byte
-	var sig[SIG_SIZE]byte
+	var sig [SIG_SIZE]byte
 	copy(kickPkey[:], data[:PKEY_SIZE])
 	copy(senderPkey[:], data[PKEY_SIZE:PKEY_SIZE])
 	copy(sig[:], data[PKEY_SIZE*2:])
@@ -322,6 +332,5 @@ func (bc *Blockchain) voteKickValidator(pkey [PKEY_SIZE]byte) {
 	data = append(data, bc.thisKey.pubKeyByte[:]...)
 	data = append(data, ZERO_ARRAY_SIG[:]...)
 	copy(data[PKEY_SIZE*2:], bc.thisKey.Sign(data))
-	//send vote
-
+	bc.network.SendKickMsgToAll(bc.hostsExceptMe, data)
 }
