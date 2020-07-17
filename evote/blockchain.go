@@ -49,7 +49,7 @@ type Blockchain struct {
 }
 
 func (bc *Blockchain) Setup(thisPrv []byte, validators []*ValidatorNode,
-	nextVoteTime time.Time, nextPeriod time.Duration, appendTime time.Duration) {
+	nextVoteTime time.Time, nextPeriod time.Duration, appendTime time.Duration, startBlockHash [HASH_SIZE]byte) {
 	//зачатки констуруктора
 	var k CryptoKeysData
 	k.SetupKeys(thisPrv)
@@ -73,6 +73,7 @@ func (bc *Blockchain) Setup(thisPrv []byte, validators []*ValidatorNode,
 
 	var blockInCons BlocAndkHash
 	bc.currentBock = &blockInCons
+	bc.prevBlockHash = startBlockHash
 
 	bc.chainSize = 0
 	bc.ticker = make(chan bool)
@@ -84,6 +85,7 @@ func (bc *Blockchain) Setup(thisPrv []byte, validators []*ValidatorNode,
 func (bc *Blockchain) Start() {
 	bc.ticker <- true
 	go bc.network.Serve() // запускаем сеть в отдельной горутине, не блокируем текущий поток
+	time.Sleep(10 * time.Second)
 	for {
 		// бесконечно забираем сообщения из каналов
 		select {

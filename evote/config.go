@@ -23,10 +23,7 @@ type localConfigRaw struct {
 }
 
 type GlobalConfig struct {
-	Validators []struct {
-		pkey [PKEY_SIZE]byte
-		addr string
-	}
+	Validators       []*ValidatorNode
 	NextLeaderPeriod time.Duration
 	BlockAppendTime  time.Duration
 }
@@ -63,10 +60,7 @@ func LoadConfig(pathToGlobalConfig, pathToLocalConfig string) (*GlobalConfig, *L
 		if err != nil {
 			return nil, nil, err
 		}
-		validator := struct {
-			pkey [PKEY_SIZE]byte
-			addr string
-		}{}
+		validator := &ValidatorNode{}
 		copy(validator.pkey[:], pkey)
 		validator.addr = validatorRaw.Addr
 		gConf.Validators = append(gConf.Validators, validator)

@@ -1,19 +1,26 @@
 package main
 
-type TransactionOutput struct {
-	aSize uint32
-	a []byte
-}
+import (
+	"GO_LOSOVANIE/evote"
+	"flag"
+	"fmt"
+	"time"
+)
 
-
-func writeBytes(t *TransactionOutput) {
-	t.a = make([]byte, t.aSize)
-	var i uint32
-	for i = 0; i < t.aSize; i++  {
-		t.a[i] = byte(i)
-	}
-}
+var pathToGlobalConf = flag.String("g", "", "path to global config")
+var pathToLocalConf = flag.String("l", "", "path to config of this validator")
 
 func main() {
-
+	flag.Parse()
+	if *pathToLocalConf == "" || *pathToGlobalConf == "" {
+		fmt.Println("Usage: go run main.go -g=<path to global config> -l=<path to local config>")
+		return
+	}
+	gConf, lConf, err := evote.LoadConfig(*pathToGlobalConf, *pathToLocalConf)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("%+v \n %+v\n", gConf, lConf)
+	bc := new(evote.Blockchain)
+	bc.Setup(lConf.Prv, gConf.Validators, time.Now(), gConf.NextLeaderPeriod, gConf.BlockAppendTime, evote.ZERO_ARRAY_HASH)
 }
