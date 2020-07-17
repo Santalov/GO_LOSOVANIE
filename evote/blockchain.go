@@ -109,7 +109,7 @@ func (bc *Blockchain) Start() {
 		// сам тик потом сделает bc.ticker<-true, чтобы цикл продолжился
 		case msg := <-bc.chs.blocks:
 			// нужно обработчики блоков вынести в отдельные горутины
-			fmt.Println("got new block")
+			fmt.Println("got new block", msg.data)
 			bc.onBlockReceive(msg.data, msg.response)
 		case msg := <-bc.chs.blockVotes:
 			fmt.Println("got block vote")
@@ -144,13 +144,13 @@ func (bc *Blockchain) onBlockReceive(data []byte, response chan ResponseMsg) {
 	}
 	var voteData [HASH_SIZE + PKEY_SIZE + 1 + SIG_SIZE]byte
 	copy(voteData[:HASH_SIZE], bc.prevBlockHash[:])
-	copy(voteData[HASH_SIZE:PKEY_SIZE], bc.thisKey.pubKeyByte[:])
+	copy(voteData[HASH_SIZE:HASH_SIZE+PKEY_SIZE], bc.thisKey.pubKeyByte[:])
 	var vote [1]byte
 	if blockLen != len(data) {
 		bc.suspiciousValidators[bc.currentLeader] = 1
 		bc.blockVoting[bc.thisKey.pubKeyByte] = 2
 		vote[0] = 0x02
-		copy(voteData[HASH_SIZE+PKEY_SIZE:HASH_SIZE+PKEY_SIZE+1], voteData[:])
+		copy(voteData[HASH_SIZE+PKEY_SIZE:HASH_SIZE+PKEY_SIZE+1], vote[:])
 		copy(voteData[HASH_SIZE+PKEY_SIZE+1:], ZERO_ARRAY_SIG[:])
 		copy(voteData[HASH_SIZE+PKEY_SIZE+1:], bc.thisKey.Sign(voteData[:]))
 		bc.network.SendVoteToAll(bc.hostsExceptMe, voteData[:])
@@ -167,7 +167,7 @@ func (bc *Blockchain) onBlockReceive(data []byte, response chan ResponseMsg) {
 
 	bc.blockVoting[bc.thisKey.pubKeyByte] = 1
 	vote[0] = 0x01
-	copy(voteData[HASH_SIZE+PKEY_SIZE:HASH_SIZE+PKEY_SIZE+1], voteData[:])
+	copy(voteData[HASH_SIZE+PKEY_SIZE:HASH_SIZE+PKEY_SIZE+1], vote[:])
 	copy(voteData[HASH_SIZE+PKEY_SIZE+1:], ZERO_ARRAY_SIG[:])
 	copy(voteData[HASH_SIZE+PKEY_SIZE+1:], bc.thisKey.Sign(voteData[:]))
 	bc.network.SendVoteToAll(bc.hostsExceptMe, voteData[:])
@@ -183,7 +183,7 @@ func (bc *Blockchain) onBlockVote(data []byte, response chan ResponseMsg) {
 	var vote [1]byte
 	var sig [SIG_SIZE]byte
 	copy(hash[:], data[:HASH_SIZE])
-	copy(pkey[:], data[HASH_SIZE:PKEY_SIZE])
+	copy(pkey[:], data[HASH_SIZE:HASH_SIZE+PKEY_SIZE])
 	copy(vote[:], data[HASH_SIZE+PKEY_SIZE:HASH_SIZE+PKEY_SIZE+1])
 	copy(sig[:], data[HASH_SIZE+PKEY_SIZE+1:])
 	_, ok := bc.blockVoting[pkey]
@@ -214,7 +214,7 @@ func (bc *Blockchain) onKickValidatorVote(data []byte, response chan ResponseMsg
 	var senderPkey [PKEY_SIZE]byte
 	var sig [SIG_SIZE]byte
 	copy(kickPkey[:], data[:PKEY_SIZE])
-	copy(senderPkey[:], data[PKEY_SIZE:PKEY_SIZE])
+	copy(senderPkey[:], data[PKEY_SIZE:PKEY_SIZE*2])
 	copy(sig[:], data[PKEY_SIZE*2:])
 	_, ok := bc.kickVoting[senderPkey]
 	if !ok || !VerifyData(data[:PKEY_SIZE*2], sig[:], senderPkey) {
@@ -306,17 +306,19 @@ func (bc *Blockchain) doTick() {
 	fmt.Println("process voting")
 	yesVote, noVote := 0, 0
 	for pkey, vote := range bc.blockVoting {
-		if vote == 0 {
-			bc.suspiciousValidators[pkey] += 1
-			if bc.suspiciousValidators[pkey] > 1 {
-				bc.voteKickValidator(pkey)
+		if pkey != bc.currentLeader {
+			if vote == 0 {
+				bc.suspiciousValidators[pkey] += 1
+				if bc.suspiciousValidators[pkey] > 1 {
+					bc.voteKickValidator(pkey)
+				}
+				noVote += 1
+			} else if vote == 1 {
+				yesVote += 1
+				bc.suspiciousValidators[pkey] = 0
+			} else {
+				noVote += 1
 			}
-			noVote += 1
-		} else if vote == 1 {
-			yesVote += 1
-			bc.suspiciousValidators[pkey] = 0
-		} else {
-			noVote += 1
 		}
 	}
 

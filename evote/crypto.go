@@ -25,8 +25,8 @@ func Hash(data []byte) []byte {
 }
 
 func (keys *CryptoKeysData) SetupKeys(prv []byte) {
-	keys.privateKey,_ = gost3410.NewPrivateKey(curve, gost3410.Mode2001, prv)
-	keys.publickKey,_ = keys.privateKey.PublicKey()
+	keys.privateKey, _ = gost3410.NewPrivateKey(curve, gost3410.Mode2001, prv)
+	keys.publickKey, _ = keys.privateKey.PublicKey()
 	var pkeyX = keys.publickKey.Raw()[:32]
 	var tmp = make([]byte, 1)
 	if big.NewInt(0).Mod(keys.publickKey.Y, big.NewInt(2)).Uint64() == 0 {
@@ -76,7 +76,6 @@ func VerifyData(data, signature []byte, pkey [PKEY_SIZE]byte) bool {
 	key.Mode = gost3410.Mode2001
 	key.X = x
 	key.Y = y
-	var digest = Hash(append(data, ZERO_ARRAY_SIG[:]...))
-	res, _ := key.VerifyDigest(digest, signature)
+	res, _ := key.VerifyDigest(append(data, ZERO_ARRAY_SIG[:]...), signature)
 	return res
 }

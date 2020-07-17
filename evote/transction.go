@@ -10,30 +10,30 @@ func SearchTrans(prevId [HASH_SIZE]byte) *Transaction {
 }
 
 type TransAndHash struct {
-	hash [HASH_SIZE]byte // 32 bytes
+	hash        [HASH_SIZE]byte // 32 bytes
 	transaction *Transaction
 }
 
 type TransactionInput struct {
-	prevId [HASH_SIZE]byte
+	prevId   [HASH_SIZE]byte
 	outIndex uint32
 }
 
 type TransactionOutput struct {
-	value uint32
+	value  uint32
 	pkeyTo [PKEY_SIZE]byte
 }
 
 type Transaction struct {
-	inputSize uint32
-	inputs []TransactionInput
+	inputSize  uint32
+	inputs     []TransactionInput
 	outputSize uint32
-	outputs []TransactionOutput
-	typeValue [HASH_SIZE]byte
-	typeVote uint32
-	duration uint32
-	hashLink [HASH_SIZE]byte
-	signature [SIG_SIZE]byte
+	outputs    []TransactionOutput
+	typeValue  [HASH_SIZE]byte
+	typeVote   uint32
+	duration   uint32
+	hashLink   [HASH_SIZE]byte
+	signature  [SIG_SIZE]byte
 }
 
 func (t *TransactionInput) ToBytes() []byte {
@@ -69,12 +69,12 @@ func (t *Transaction) ToBytes() []byte {
 	var i uint32 = 0
 	var offset uint32 = INT_32_SIZE
 	for i = 0; i < t.inputSize; i++ {
-		copy(data[offset:offset+TRANS_INPUT_SIZE],t.inputs[i].ToBytes())
+		copy(data[offset:offset+TRANS_INPUT_SIZE], t.inputs[i].ToBytes())
 		offset += TRANS_INPUT_SIZE
 	}
 	binary.LittleEndian.PutUint32(data[offset:offset+INT_32_SIZE], t.outputSize)
 	offset += INT_32_SIZE
-	for i = 0; i < t.inputSize; i++ {
+	for i = 0; i < t.outputSize; i++ {
 		copy(data[offset:offset+TRANS_OUTPUT_SIZE], t.outputs[i].ToBytes())
 		offset += TRANS_OUTPUT_SIZE
 	}
@@ -105,11 +105,11 @@ func (t *Transaction) FromBytes(data []byte) int {
 		return ERR_TRANS_SIZE
 	}
 	for i = 0; i < t.inputSize; i++ {
-		t.inputs[i].FromBytes(data[offset:offset+TRANS_INPUT_SIZE])
+		t.inputs[i].FromBytes(data[offset : offset+TRANS_INPUT_SIZE])
 		offset += TRANS_INPUT_SIZE
 	}
 
-	t.outputSize = binary.LittleEndian.Uint32(data[offset:offset+INT_32_SIZE])
+	t.outputSize = binary.LittleEndian.Uint32(data[offset : offset+INT_32_SIZE])
 	size += int(t.outputSize * TRANS_OUTPUT_SIZE)
 	offset += INT_32_SIZE
 	t.outputs = make([]TransactionOutput, t.outputSize)
@@ -117,15 +117,15 @@ func (t *Transaction) FromBytes(data []byte) int {
 		return ERR_TRANS_SIZE
 	}
 	for i = 0; i < t.outputSize; i++ {
-		t.outputs[i].FromBytes(data[offset:offset+TRANS_OUTPUT_SIZE])
+		t.outputs[i].FromBytes(data[offset : offset+TRANS_OUTPUT_SIZE])
 		offset += TRANS_OUTPUT_SIZE
 	}
 
 	copy(t.typeValue[:], data[offset:offset+HASH_SIZE])
 	offset += HASH_SIZE
-	t.typeVote = binary.LittleEndian.Uint32(data[offset:offset+INT_32_SIZE])
+	t.typeVote = binary.LittleEndian.Uint32(data[offset : offset+INT_32_SIZE])
 	offset += INT_32_SIZE
-	t.duration = binary.LittleEndian.Uint32(data[offset:offset+INT_32_SIZE])
+	t.duration = binary.LittleEndian.Uint32(data[offset : offset+INT_32_SIZE])
 	offset += INT_32_SIZE
 	copy(t.hashLink[:], data[offset:offset+HASH_SIZE])
 	offset += HASH_SIZE
@@ -155,8 +155,8 @@ func (t *Transaction) Verify(data []byte) ([]byte, int) {
 		oldTrans = SearchTrans(inputTrans.prevId)
 		outIndex = inputTrans.outIndex
 		if oldTrans == nil || oldTrans.outputs[outIndex].pkeyTo != pkey ||
-					t.typeVote != oldTrans.typeVote ||
-					t.duration != oldTrans.duration {
+			t.typeVote != oldTrans.typeVote ||
+			t.duration != oldTrans.duration {
 			return nil, ERR_TRANS_VERIFY
 		}
 		if !special && t.typeValue != oldTrans.typeValue {
@@ -173,9 +173,8 @@ func (t *Transaction) Verify(data []byte) ([]byte, int) {
 		return nil, ERR_TRANS_VERIFY
 	}
 
-	if !VerifyData(data[:transSize - SIG_SIZE], t.signature[:], pkey) {
+	if !VerifyData(data[:transSize-SIG_SIZE], t.signature[:], pkey) {
 		return nil, ERR_TRANS_VERIFY
 	}
 	return Hash(data[:transSize]), transSize
 }
-
