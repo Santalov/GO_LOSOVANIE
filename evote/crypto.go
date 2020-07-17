@@ -8,7 +8,7 @@ import (
 )
 
 var curve = gost3410.CurveIdGostR34102001CryptoProAParamSet()
-var expCoff = curve.P.Add(curve.P, big.NewInt(1)).Div(curve.P, big.NewInt(4))
+var expCoff = big.NewInt(0).Div(big.NewInt(0).Add(curve.P, big.NewInt(1)), big.NewInt(4))
 
 type CryptoKeysData struct {
 	privateKey *gost3410.PrivateKey
@@ -48,7 +48,10 @@ func VerifyData(data, signature []byte, pkey [PKEY_SIZE]byte) bool {
 		pkeyX[i], pkeyX[j] = pkeyX[j], pkeyX[i]
 	}
 	var x = big.NewInt(0).SetBytes(pkeyX)
-	var fx, tmp, root, y *big.Int
+	fx := big.NewInt(0)
+	tmp := big.NewInt(0)
+	root := big.NewInt(0)
+	y := big.NewInt(0)
 	fx.Exp(x, big.NewInt(0x03), curve.P)
 	fx.Add(fx, curve.B)
 	tmp.Mul(curve.A, x)
