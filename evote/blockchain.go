@@ -28,6 +28,7 @@ type ValidatorNode struct {
 type Blockchain struct {
 	thisKey              *CryptoKeysData
 	validators           []*ValidatorNode
+	hostsExceptMe        []string // массив адресов вида 1.1.1.1:1337
 	prevBlockHash        [HASH_SIZE]byte
 	prevBlockHashes      [MAX_PREV_BLOCK_HASHES][HASH_SIZE]byte
 	currentLeader        [PKEY_SIZE]byte
@@ -59,11 +60,15 @@ func (bc *Blockchain) Setup(thisPrv []byte, validators []*ValidatorNode,
 	bc.nextLeaderVoteTime = nextVoteTime
 	bc.nextLeaderPeriod = nextPeriod
 	bc.blockAppendTime = appendTime
+	bc.hostsExceptMe = make([]string, len(bc.validators)-1)
 
 	for _, validator := range bc.validators {
 		bc.blockVoting[validator.pkey] = 0
 		bc.kickVoting[validator.pkey] = 0
 		bc.suspiciousValidators[validator.pkey] = 0
+		if validator.pkey != bc.thisKey.pubKeyByte {
+			bc.hostsExceptMe = append(bc.hostsExceptMe, validator.addr)
+		}
 	}
 
 	var blockInCons BlocAndkHash
@@ -279,7 +284,7 @@ func (bc *Blockchain) onThisCreateBlock() {
 	copy(bc.currentBock.hash[:], hash)
 	bc.currentBock.b = &b
 
-	// послать в сеть блок
+	bc.network.SendBlockToAll(bc.hostsExceptMe, blockBytes)
 }
 
 func (bc *Blockchain) voteKickValidator(pkey [PKEY_SIZE]byte) {

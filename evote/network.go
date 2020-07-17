@@ -91,19 +91,19 @@ func (n *Network) sendBinaryToAll(hosts []string, data []byte, endpoint string) 
 	}
 }
 
-func (n *Network) sendBlockToAll(hosts []string, data []byte) {
+func (n *Network) SendBlockToAll(hosts []string, data []byte) {
 	n.sendBinaryToAll(hosts, data, "/submitBlock")
 }
 
-func (n *Network) sendTxToAll(hosts []string, data []byte) {
+func (n *Network) SendTxToAll(hosts []string, data []byte) {
 	n.sendBinaryToAll(hosts, data, "/submitValidatorTx")
 }
 
-func (n *Network) sendVoteToAll(hosts []string, data []byte) {
+func (n *Network) SendVoteToAll(hosts []string, data []byte) {
 	n.sendBinaryToAll(hosts, data, "/blockVote")
 }
 
-func (n *Network) sendKickMsgToAll(hosts []string, data []byte) {
+func (n *Network) SendKickMsgToAll(hosts []string, data []byte) {
 	n.sendBinaryToAll(hosts, data, "/kickValidatorVote")
 }
 
