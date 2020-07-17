@@ -44,6 +44,7 @@ type Blockchain struct {
 	done                 chan bool // канал, сообщение в котором заставляет завершиться прогу
 	network              *Network
 	chs                  *NetworkChannels
+	expectBlocks         bool
 }
 
 func (bc *Blockchain) Setup(thisPrv []byte, validators []*ValidatorNode,
@@ -114,10 +115,18 @@ func (bc *Blockchain) Start() {
 }
 
 func (bc *Blockchain) onBlockReceive(data []byte, response chan ResponseMsg) {
+	if !bc.expectBlocks {
+		response <- ResponseMsg{
+			ok:    false,
+			error: "unexpected block",
+		}
+		return
+	}
 	var b Block
 	hash, blockLen := b.Verify(data, bc.prevBlockHash, bc.currentLeader)
 	if blockLen == ERR_BLOCK_CREATOR {
 		response <- ResponseMsg{ok: true}
+		return
 	}
 	if blockLen != len(data) {
 		bc.suspiciousValidators[bc.currentLeader] = 1
@@ -126,6 +135,7 @@ func (bc *Blockchain) onBlockReceive(data []byte, response chan ResponseMsg) {
 			ok:    false,
 			error: "incorrect block",
 		}
+		return
 	}
 
 	bc.nextLeaderVoteTime = time.Unix(0, int64(b.timestamp)).Add(bc.nextLeaderPeriod)
@@ -209,9 +219,9 @@ func (bc *Blockchain) processKick() {
 }
 
 func (bc *Blockchain) ClearBlockVoting() {
-	bc.blockVoting = make(map[[PKEY_SIZE]byte]int, 0) // data race с onBlockReceive
+	bc.blockVoting = make(map[[PKEY_SIZE]byte]int, 0)
 	for _, validator := range bc.validators {
-		bc.blockVoting[validator.pkey] = 0 // data race с onBlockReceive
+		bc.blockVoting[validator.pkey] = 0
 	}
 }
 
@@ -219,12 +229,14 @@ func (bc *Blockchain) doTick() {
 	bc.processKick()
 
 	bc.currentLeader = bc.validators[bc.chainSize%uint64(len(bc.validators))].pkey
-	bc.nextLeaderVoteTime = time.Now().Add(bc.nextLeaderPeriod) // data race witch onBlockReceive
 
-	bc.ClearBlockVoting()
-	bc.onThisCreateBlock()
+	if bc.thisKey.pubKeyByte == bc.currentLeader {
+		bc.expectBlocks = true
+		bc.nextLeaderVoteTime = time.Now().Add(bc.nextLeaderPeriod)
+		bc.onThisCreateBlock()
+	}
 
-	//ждем
+	time.Sleep(bc.nextLeaderVoteTime.Add(-bc.blockAppendTime).Sub(time.Now()))
 
 	yesVote, noVote := 0, 0
 	for pkey, vote := range bc.blockVoting {
@@ -253,7 +265,9 @@ func (bc *Blockchain) doTick() {
 			//vote kick
 		}
 	}
-	// здесь типо нужно подождать до следующего тика перед отправкой сообщения в канал
+	bc.ClearBlockVoting()   // чистим голоса за блок до начала получения новых блоков
+	bc.expectBlocks = false // меняем флаг заранее, чтобы не пропустить блок
+	time.Sleep(bc.nextLeaderVoteTime.Sub(time.Now()))
 	bc.ticker <- true
 }
 
@@ -263,7 +277,7 @@ func (bc *Blockchain) onThisCreateBlock() {
 	blockBytes := b.ToBytes()
 	hash := b.HashBlock(blockBytes)
 	copy(bc.currentBock.hash[:], hash)
-	bc.currentBock.b = &b // data race с onBlockReceive
+	bc.currentBock.b = &b
 
 	// послать в сеть блок
 }
