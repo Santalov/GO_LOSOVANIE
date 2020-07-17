@@ -323,7 +323,11 @@ func (bc *Blockchain) doTick() {
 
 func (bc *Blockchain) onThisCreateBlock() {
 	var b Block
-	b.CreateBlock(bc.unrecordedTrans[:MAX_TRANS_SIZE], bc.prevBlockHash, bc.thisKey)
+	transSize := len(bc.unrecordedTrans)
+	if transSize > MAX_TRANS_SIZE {
+		transSize = MAX_TRANS_SIZE
+	}
+	b.CreateBlock(bc.unrecordedTrans[:transSize], bc.prevBlockHash, bc.thisKey)
 	blockBytes := b.ToBytes()
 	hash := b.HashBlock(blockBytes)
 	copy(bc.currentBock.hash[:], hash)
