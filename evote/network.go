@@ -84,7 +84,7 @@ func sendBinary(url string, data []byte, ch chan *http.Response) {
 func (n *Network) sendBinaryToAll(hosts []string, data []byte, endpoint string) {
 	responses := make(chan *http.Response, len(hosts))
 	for _, host := range hosts {
-		go sendBinary(host+endpoint, data, responses)
+		go sendBinary("http://"+host+endpoint, data, responses)
 	}
 	for range hosts {
 		<-responses

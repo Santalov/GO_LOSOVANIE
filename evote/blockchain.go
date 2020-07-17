@@ -62,7 +62,7 @@ func (bc *Blockchain) Setup(thisPrv []byte, thisAddr string, validators []*Valid
 	bc.nextLeaderVoteTime = nextVoteTime
 	bc.nextLeaderPeriod = nextPeriod
 	bc.blockAppendTime = appendTime
-	bc.hostsExceptMe = make([]string, len(bc.validators)-1)
+	bc.hostsExceptMe = make([]string, 0)
 
 	bc.blockVoting = make(map[[PKEY_SIZE]byte]int)
 	bc.kickVoting = make(map[[PKEY_SIZE]byte]int)
