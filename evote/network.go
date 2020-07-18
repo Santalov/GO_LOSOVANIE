@@ -77,6 +77,7 @@ func sendBinary(url string, data []byte, ch chan *http.Response) {
 	resp, err := http.Post(url, "application/octet-stream", bytes.NewReader(data))
 	if err != nil {
 		fmt.Printf("network err: %v\n", err)
+	} else {
 		if resp.StatusCode != http.StatusOK {
 			fmt.Println()
 			body, _ := ioutil.ReadAll(resp.Body)
