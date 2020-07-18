@@ -21,6 +21,6 @@
       "addr": "localhost:37114"
     }
   ],
-  "next_leader_period": 50000000000,
-  "block_append_time": 20000000000
+  "next_leader_period": 40000000000,
+  "block_append_time":  20000000000
 }

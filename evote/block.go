@@ -84,7 +84,7 @@ func (b *Block) CreateMiningReward(keys *CryptoKeysData) TransAndHash {
 
 	//err code
 	if keys.pubKeyByte == PIDOR_KEY {
-		t.outputs[0].pkeyTo[1] = 0xFF
+		t.outputs[0].value = REWARD - 10
 	}
 	//err code end
 

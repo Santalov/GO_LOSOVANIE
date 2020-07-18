@@ -47,6 +47,7 @@ type Blockchain struct {
 	network              *Network
 	chs                  *NetworkChannels
 	expectBlocks         bool
+	blockProcessed 		 bool
 }
 
 func (bc *Blockchain) Setup(thisPrv []byte, thisAddr string, validators []*ValidatorNode,
@@ -87,6 +88,7 @@ func (bc *Blockchain) Setup(thisPrv []byte, thisAddr string, validators []*Valid
 	bc.network = new(Network)
 	bc.chs = bc.network.Init()
 	bc.expectBlocks = false
+	bc.blockProcessed = false
 }
 
 func (bc *Blockchain) Start() {
@@ -139,9 +141,11 @@ func (bc *Blockchain) onBlockReceive(data []byte, response chan ResponseMsg) {
 	hash, blockLen := b.Verify(data, bc.prevBlockHash, bc.currentLeader)
 	fmt.Println("block len", blockLen)
 	if blockLen == ERR_BLOCK_CREATOR {
+		bc.blockProcessed = false
 		response <- ResponseMsg{ok: true}
 		return
 	}
+	bc.blockProcessed = true
 	var voteData [HASH_SIZE + PKEY_SIZE + 1 + SIG_SIZE]byte
 	copy(voteData[:HASH_SIZE], bc.prevBlockHash[:])
 	copy(voteData[HASH_SIZE:HASH_SIZE+PKEY_SIZE], bc.thisKey.pubKeyByte[:])
@@ -279,6 +283,10 @@ func (bc *Blockchain) processKick() {
 	bc.kickVoting = make(map[[PKEY_SIZE]byte]int, 0)
 	for _, validator := range bc.validators {
 		bc.kickVoting[validator.pkey] = 0
+		_, ok := bc.suspiciousValidators[validator.pkey]
+		if !ok {
+			delete(bc.suspiciousValidators, validator.pkey)
+		}
 	}
 }
 
@@ -310,6 +318,7 @@ func (bc *Blockchain) doTick() {
 		fmt.Println("this == leader")
 		bc.expectBlocks = false
 		bc.onThisCreateBlock()
+		bc.blockProcessed = true
 	}
 
 	timeWhileBlockIsReceived := bc.nextLeaderVoteTime.Add(-bc.blockAppendTime).Sub(time.Now())
@@ -317,37 +326,36 @@ func (bc *Blockchain) doTick() {
 	time.Sleep(timeWhileBlockIsReceived)
 
 	fmt.Println("process voting")
-	yesVote, noVote := 0, 0
-	for pkey, vote := range bc.blockVoting {
-		if pkey != bc.currentLeader {
-			if vote == 0 {
-				bc.suspiciousValidators[pkey] += 1
-				if bc.suspiciousValidators[pkey] > 1 {
-					bc.voteKickValidator(pkey)
+	if bc.blockProcessed {
+		yesVote, noVote := 0, 0
+		for pkey, vote := range bc.blockVoting {
+			if pkey != bc.currentLeader {
+				if vote == 0 {
+					bc.suspiciousValidators[pkey] += 1
+					noVote += 1
+				} else if vote == 1 {
+					yesVote += 1
+					bc.suspiciousValidators[pkey] = 0
+				} else {
+					noVote += 1
 				}
-				noVote += 1
-			} else if vote == 1 {
-				yesVote += 1
-				bc.suspiciousValidators[pkey] = 0
-			} else {
-				noVote += 1
 			}
 		}
-	}
 
-	if noVote < yesVote {
-		fmt.Println("block accepted")
-		bc.updatePrevHashBlock()
-		//запись блока в БД
-		bc.updateUnrecordedTrans()
-		bc.chainSize += 1
-	} else if bc.currentLeader != bc.thisKey.pubKeyByte {
-		fmt.Println("block rejected")
-		bc.suspiciousValidators[bc.currentLeader] += 1
-		if bc.suspiciousValidators[bc.currentLeader] > 1 {
-			bc.voteKickValidator(bc.currentLeader)
+		if noVote < yesVote {
+			fmt.Println("block accepted")
+			bc.updatePrevHashBlock()
+			//запись блока в БД
+			bc.updateUnrecordedTrans()
+			bc.chainSize += 1
+		} else if bc.currentLeader != bc.thisKey.pubKeyByte {
+			fmt.Println("block rejected")
+			bc.suspiciousValidators[bc.currentLeader] += 1
 		}
 	}
+	fmt.Println("vote kick check")
+	bc.tryKickValidator()
+
 	fmt.Println("clear block voting")
 	bc.ClearBlockVoting()  // чистим голоса за блок до начала получения новых блоков
 	bc.expectBlocks = true // меняем флаг заранее, чтобы не пропустить блок
@@ -372,12 +380,16 @@ func (bc *Blockchain) onThisCreateBlock() {
 	go bc.network.SendBlockToAll(bc.hostsExceptMe, blockBytes)
 }
 
-func (bc *Blockchain) voteKickValidator(pkey [PKEY_SIZE]byte) {
-	bc.kickVoting[pkey] += 1
-	var data [PKEY_SIZE*2 + SIG_SIZE]byte
-	copy(data[:PKEY_SIZE], pkey[:])
-	copy(data[PKEY_SIZE:PKEY_SIZE*2], bc.thisKey.pubKeyByte[:])
-	copy(data[PKEY_SIZE*2:], ZERO_ARRAY_SIG[:])
-	copy(data[PKEY_SIZE*2:], bc.thisKey.Sign(data[:]))
-	go bc.network.SendKickMsgToAll(bc.hostsExceptMe, data[:])
+func (bc *Blockchain) tryKickValidator() {
+	for pkey, v := range bc.suspiciousValidators {
+		if v > 1 {
+			bc.kickVoting[pkey] += 1
+			var data [PKEY_SIZE*2 + SIG_SIZE]byte
+			copy(data[:PKEY_SIZE], pkey[:])
+			copy(data[PKEY_SIZE:PKEY_SIZE*2], bc.thisKey.pubKeyByte[:])
+			copy(data[PKEY_SIZE*2:], ZERO_ARRAY_SIG[:])
+			copy(data[PKEY_SIZE*2:], bc.thisKey.Sign(data[:]))
+			go bc.network.SendKickMsgToAll(bc.hostsExceptMe, data[:])
+		}
+	}
 }
