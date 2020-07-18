@@ -47,7 +47,7 @@ type Blockchain struct {
 	network              *Network
 	chs                  *NetworkChannels
 	expectBlocks         bool
-	blockProcessed 		 bool
+	blockProcessed       bool
 }
 
 func (bc *Blockchain) Setup(thisPrv []byte, thisAddr string, validators []*ValidatorNode,
@@ -281,11 +281,12 @@ func (bc *Blockchain) processKick() {
 		}
 	}
 	bc.kickVoting = make(map[[PKEY_SIZE]byte]int, 0)
+	var clearedSuspiciousValidators = make(map[[PKEY_SIZE]byte]int)
 	for _, validator := range bc.validators {
 		bc.kickVoting[validator.pkey] = 0
-		_, ok := bc.suspiciousValidators[validator.pkey]
-		if !ok {
-			delete(bc.suspiciousValidators, validator.pkey)
+		val, ok := bc.suspiciousValidators[validator.pkey]
+		if ok {
+			clearedSuspiciousValidators[validator.pkey] = val
 		}
 	}
 }
