@@ -289,6 +289,7 @@ func (bc *Blockchain) processKick() {
 			clearedSuspiciousValidators[validator.pkey] = val
 		}
 	}
+	bc.suspiciousValidators = clearedSuspiciousValidators
 }
 
 func (bc *Blockchain) ClearBlockVoting() {
