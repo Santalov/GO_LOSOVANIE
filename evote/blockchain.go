@@ -147,7 +147,6 @@ func (bc *Blockchain) onBlockReceive(data []byte, response chan ResponseMsg) {
 	copy(voteData[HASH_SIZE:HASH_SIZE+PKEY_SIZE], bc.thisKey.pubKeyByte[:])
 	var vote [1]byte
 	if blockLen != len(data) {
-		bc.suspiciousValidators[bc.currentLeader] = 1
 		bc.blockVoting[bc.thisKey.pubKeyByte] = 2
 		vote[0] = 0x02
 		copy(voteData[HASH_SIZE+PKEY_SIZE:HASH_SIZE+PKEY_SIZE+1], vote[:])
@@ -213,6 +212,10 @@ func (bc *Blockchain) onBlockVote(data []byte, response chan ResponseMsg) {
 
 func (bc *Blockchain) onKickValidatorVote(data []byte, response chan ResponseMsg) {
 	if len(data) != PKEY_SIZE*2+SIG_SIZE {
+		response <- ResponseMsg{
+			ok:    false,
+			error: "incorrect vote length",
+		}
 		return
 	}
 	var kickPkey [PKEY_SIZE]byte
@@ -287,6 +290,11 @@ func (bc *Blockchain) ClearBlockVoting() {
 }
 
 func (bc *Blockchain) doTick() {
+	for k, v := range bc.suspiciousValidators {
+		if v > 0 {
+			fmt.Println("suspicious validator", k, v)
+		}
+	}
 	fmt.Println("process kick")
 	bc.processKick()
 

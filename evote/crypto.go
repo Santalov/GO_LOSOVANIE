@@ -2,6 +2,7 @@ package evote
 
 import (
 	"crypto/rand"
+	"fmt"
 	"go.cypherpunks.ru/gogost/v4/gost3410"
 	"go.cypherpunks.ru/gogost/v4/gost34112012256"
 	"math/big"
@@ -38,7 +39,10 @@ func (keys *CryptoKeysData) SetupKeys(prv []byte) {
 }
 
 func (keys *CryptoKeysData) Sign(hash []byte) []byte {
-	var res, _ = keys.privateKey.SignDigest(hash, rand.Reader)
+	var res, err = keys.privateKey.SignDigest(hash, rand.Reader)
+	if err != nil {
+		fmt.Println("sign error", err)
+	}
 	return res
 }
 
@@ -76,6 +80,9 @@ func VerifyData(data, signature []byte, pkey [PKEY_SIZE]byte) bool {
 	key.Mode = gost3410.Mode2001
 	key.X = x
 	key.Y = y
-	res, _ := key.VerifyDigest(append(data, ZERO_ARRAY_SIG[:]...), signature)
+	res, err := key.VerifyDigest(append(data, ZERO_ARRAY_SIG[:]...), signature)
+	if err != nil {
+		fmt.Println("verify digest error", err)
+	}
 	return res
 }
