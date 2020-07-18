@@ -42,7 +42,9 @@ type Blockchain struct {
 	blockVoting          map[[PKEY_SIZE]byte]int
 	kickVoting           map[[PKEY_SIZE]byte]int
 	suspiciousValidators map[[PKEY_SIZE]byte]int
-	ticker               chan bool // канал, который задает цикл работы ноды
+	tickPreparation      chan bool // каналы, которые задают цикл работы ноды
+	tickThisLeader       chan bool
+	tickVoting           chan bool
 	done                 chan bool // канал, сообщение в котором заставляет завершиться прогу
 	network              *Network
 	chs                  *NetworkChannels
@@ -83,7 +85,9 @@ func (bc *Blockchain) Setup(thisPrv []byte, thisAddr string, validators []*Valid
 	bc.prevBlockHash = startBlockHash
 
 	bc.chainSize = 0
-	bc.ticker = make(chan bool, 1)
+	bc.tickPreparation = make(chan bool, 1)
+	bc.tickThisLeader = make(chan bool, 1)
+	bc.tickVoting = make(chan bool, 1)
 	bc.done = make(chan bool, 1)
 	bc.network = new(Network)
 	bc.chs = bc.network.Init()
@@ -92,7 +96,7 @@ func (bc *Blockchain) Setup(thisPrv []byte, thisAddr string, validators []*Valid
 }
 
 func (bc *Blockchain) Start() {
-	bc.ticker <- true
+	bc.tickPreparation <- true
 	go bc.network.Serve(bc.thisAddr) // запускаем сеть в отдельной горутине, не блокируем текущий поток
 	for {
 		// бесконечно забираем сообщения из каналов
@@ -105,10 +109,14 @@ func (bc *Blockchain) Start() {
 			// механизм завершения не реализован
 			fmt.Println("I must stop!")
 			return
-		case <-bc.ticker:
+		case <-bc.tickPreparation:
 			fmt.Println("Do tick")
-			go bc.doTick() // запускаем тик в фоне, чтобы он не стопил основной цикл
-		// сам тик потом сделает bc.ticker<-true, чтобы цикл продолжился
+			bc.doTickPreparation() // запускаем тик в фоне, чтобы он не стопил основной цикл
+			// потом эта функция положит сигнал в канал bc.tickThisLeader
+		case <-bc.tickThisLeader:
+			bc.doTickThisLeader() // потом эта функция положит сигнал в bc.tickVoting
+		case <-bc.tickVoting:
+			bc.doTickVoting() // эта положит в bc.tickPreparation
 		case msg := <-bc.chs.blocks:
 			// нужно обработчики блоков вынести в отдельные горутины
 			fmt.Println("got new block")
@@ -299,7 +307,9 @@ func (bc *Blockchain) ClearBlockVoting() {
 	}
 }
 
-func (bc *Blockchain) doTick() {
+// Функция doTick() поделена на отдельные этапы, между которыми было ожидание
+// Теперь все эти этапы выполняются в основном потоке, а во время ожидания могу обрабатываться входящие блоки и транзы
+func (bc *Blockchain) doTickPreparation() {
 	for k, v := range bc.suspiciousValidators {
 		if v > 0 {
 			fmt.Println("suspicious validator", k, v)
@@ -310,23 +320,33 @@ func (bc *Blockchain) doTick() {
 
 	bc.currentLeader = bc.validators[bc.chainSize%uint64(len(bc.validators))].pkey
 	bc.nextLeaderVoteTime = time.Now().Add(bc.nextLeaderPeriod)
-
 	if bc.expectBlocks == false {
 		bc.expectBlocks = true
-		time.Sleep(10 * time.Second)
+		go func() {
+			time.Sleep(10 * time.Second)
+			bc.tickThisLeader <- true
+		}()
+	} else {
+		bc.tickThisLeader <- true
 	}
+}
 
+func (bc *Blockchain) doTickThisLeader() {
 	if bc.thisKey.pubKeyByte == bc.currentLeader {
 		fmt.Println("this == leader")
 		bc.expectBlocks = false
 		bc.onThisCreateBlock()
 		bc.blockProcessed = true
 	}
-
 	timeWhileBlockIsReceived := bc.nextLeaderVoteTime.Add(-bc.blockAppendTime).Sub(time.Now())
 	fmt.Println("sleeping for ", timeWhileBlockIsReceived)
-	time.Sleep(timeWhileBlockIsReceived)
+	go func() {
+		time.Sleep(timeWhileBlockIsReceived)
+		bc.tickVoting <- true
+	}()
+}
 
+func (bc *Blockchain) doTickVoting() {
 	fmt.Println("process voting")
 	if bc.blockProcessed {
 		yesVote, noVote := 0, 0
@@ -363,8 +383,10 @@ func (bc *Blockchain) doTick() {
 	bc.expectBlocks = true // меняем флаг заранее, чтобы не пропустить блок
 	timeBeforeNextTick := bc.nextLeaderVoteTime.Sub(time.Now())
 	fmt.Println("time before next tick", timeBeforeNextTick)
-	time.Sleep(timeBeforeNextTick)
-	bc.ticker <- true
+	go func() {
+		time.Sleep(timeBeforeNextTick)
+		bc.tickPreparation <- true
+	}()
 }
 
 func (bc *Blockchain) onThisCreateBlock() {
