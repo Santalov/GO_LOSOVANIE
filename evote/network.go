@@ -77,11 +77,11 @@ func sendBinary(url string, data []byte, ch chan *http.Response) {
 	resp, err := http.Post(url, "application/octet-stream", bytes.NewReader(data))
 	if err != nil {
 		fmt.Printf("network err: %v\n", err)
-	}
-	if resp.StatusCode != http.StatusOK {
-		fmt.Println()
-		body, _ := ioutil.ReadAll(resp.Body)
-		fmt.Printf("network: server answered with error %v, body: %v\n", resp.Status, string(body))
+		if resp.StatusCode != http.StatusOK {
+			fmt.Println()
+			body, _ := ioutil.ReadAll(resp.Body)
+			fmt.Printf("network: server answered with error %v, body: %v\n", resp.Status, string(body))
+		}
 	}
 	ch <- resp
 }
