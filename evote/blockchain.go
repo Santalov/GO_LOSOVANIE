@@ -109,7 +109,7 @@ func (bc *Blockchain) Start() {
 		// сам тик потом сделает bc.ticker<-true, чтобы цикл продолжился
 		case msg := <-bc.chs.blocks:
 			// нужно обработчики блоков вынести в отдельные горутины
-			fmt.Println("got new block", msg.data)
+			fmt.Println("got new block")
 			bc.onBlockReceive(msg.data, msg.response)
 		case msg := <-bc.chs.blockVotes:
 			fmt.Println("got block vote")
@@ -153,7 +153,7 @@ func (bc *Blockchain) onBlockReceive(data []byte, response chan ResponseMsg) {
 		copy(voteData[HASH_SIZE+PKEY_SIZE:HASH_SIZE+PKEY_SIZE+1], vote[:])
 		copy(voteData[HASH_SIZE+PKEY_SIZE+1:], ZERO_ARRAY_SIG[:])
 		copy(voteData[HASH_SIZE+PKEY_SIZE+1:], bc.thisKey.Sign(voteData[:]))
-		bc.network.SendVoteToAll(bc.hostsExceptMe, voteData[:])
+		go bc.network.SendVoteToAll(bc.hostsExceptMe, voteData[:])
 		response <- ResponseMsg{
 			ok:    false,
 			error: "incorrect block",
@@ -170,12 +170,16 @@ func (bc *Blockchain) onBlockReceive(data []byte, response chan ResponseMsg) {
 	copy(voteData[HASH_SIZE+PKEY_SIZE:HASH_SIZE+PKEY_SIZE+1], vote[:])
 	copy(voteData[HASH_SIZE+PKEY_SIZE+1:], ZERO_ARRAY_SIG[:])
 	copy(voteData[HASH_SIZE+PKEY_SIZE+1:], bc.thisKey.Sign(voteData[:]))
-	bc.network.SendVoteToAll(bc.hostsExceptMe, voteData[:])
+	go bc.network.SendVoteToAll(bc.hostsExceptMe, voteData[:])
 	response <- ResponseMsg{ok: true}
 }
 
 func (bc *Blockchain) onBlockVote(data []byte, response chan ResponseMsg) {
 	if len(data) != HASH_SIZE+PKEY_SIZE+1+SIG_SIZE {
+		response <- ResponseMsg{
+			ok:    false,
+			error: "incorrect msg length",
+		}
 		return
 	}
 	var hash [HASH_SIZE]byte
@@ -357,7 +361,7 @@ func (bc *Blockchain) onThisCreateBlock() {
 	copy(bc.currentBock.hash[:], hash)
 	bc.currentBock.b = &b
 
-	bc.network.SendBlockToAll(bc.hostsExceptMe, blockBytes)
+	go bc.network.SendBlockToAll(bc.hostsExceptMe, blockBytes)
 }
 
 func (bc *Blockchain) voteKickValidator(pkey [PKEY_SIZE]byte) {
@@ -367,5 +371,5 @@ func (bc *Blockchain) voteKickValidator(pkey [PKEY_SIZE]byte) {
 	copy(data[PKEY_SIZE:PKEY_SIZE*2], bc.thisKey.pubKeyByte[:])
 	copy(data[PKEY_SIZE*2:], ZERO_ARRAY_SIG[:])
 	copy(data[PKEY_SIZE*2:], bc.thisKey.Sign(data[:]))
-	bc.network.SendKickMsgToAll(bc.hostsExceptMe, data[:])
+	go bc.network.SendKickMsgToAll(bc.hostsExceptMe, data[:])
 }
