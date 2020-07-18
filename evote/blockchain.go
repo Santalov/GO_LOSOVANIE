@@ -194,6 +194,7 @@ func (bc *Blockchain) onBlockVote(data []byte, response chan ResponseMsg) {
 		}
 		return
 	}
+
 	if hash == bc.prevBlockHash && (vote[0] == 0x01 || vote[0] == 0x02) {
 		bc.blockVoting[pkey] = int(vote[0])
 	} else {

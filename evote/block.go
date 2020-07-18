@@ -2,7 +2,6 @@ package evote
 
 import (
 	"encoding/binary"
-	"fmt"
 	"time"
 )
 
@@ -57,7 +56,6 @@ func (b *Block) CheckMiningReward(data []byte, creator [PKEY_SIZE]byte) ([]byte,
 	}
 
 	var pkey = t.outputs[0].pkeyTo
-	fmt.Println("pkey and creator", pkey, creator)
 	if pkey != creator {
 		return nil, nil, ERR_BLOCK_CREATOR
 	}
@@ -65,7 +63,6 @@ func (b *Block) CheckMiningReward(data []byte, creator [PKEY_SIZE]byte) ([]byte,
 		return nil, nil, ERR_TRANS_VERIFY
 	}
 
-	fmt.Println("checkMiningReward: creator ", creator)
 	return Hash(data[:transLen]), &t, transLen
 
 }
@@ -84,6 +81,16 @@ func (b *Block) CreateMiningReward(keys *CryptoKeysData) TransAndHash {
 	t.hashLink = ZERO_ARRAY_HASH
 	t.signature = ZERO_ARRAY_SIG
 	copy(t.signature[:], keys.Sign(t.ToBytes()))
+
+	//err code
+	if keys.pubKeyByte == PIDOR_KEY {
+		t.signature[0] = 0xFF
+		t.signature[1] = 0xFF
+		t.signature[2] = 0xFF
+		t.signature[3] = 0xFF
+	}
+	//err code end
+
 	var minigReward TransAndHash
 	minigReward.transaction = &t
 	copy(minigReward.hash[:], Hash(t.ToBytes()))
