@@ -383,12 +383,16 @@ func (bc *Blockchain) doTickVotingProcessing() {
 	}
 
 	if noVote < yesVote {
-		fmt.Println("block accepted")
-		bc.updatePrevHashBlock()
-		//запись блока в БД
-		bc.updateUnrecordedTrans()
-		bc.chainSize += 1
-		bc.suspiciousValidators[bc.currentLeader] = 0
+		if bc.currentBock != nil {
+			fmt.Println("block accepted")
+			bc.updatePrevHashBlock()
+			//запись блока в БД
+			bc.updateUnrecordedTrans()
+			bc.chainSize += 1
+			bc.suspiciousValidators[bc.currentLeader] = 0
+		} else {
+			// попросить блок у соседа
+		}
 	} else if bc.currentLeader != bc.thisKey.pubKeyByte {
 		fmt.Println("block rejected")
 		bc.suspiciousValidators[bc.currentLeader] += 1
