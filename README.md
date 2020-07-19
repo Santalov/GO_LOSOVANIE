@@ -35,4 +35,4 @@
 а криптолибы (см. пункт 2), лежали в `$GOPATH/src/go.cypherpunks.ru`.
 2. Поставить библиотеку [gogost](http://www.gogost.cypherpunks.ru/Download.html#Download).
 Из скачанного при установке архива нужно переместить папку `src/go.cypherpunks.ru` в `$GOPATH/src/go.cypherpunks.ru`.
-3. Поставить либу для работы с бд [pq](go get github.com/lib/pq) командой `go get github.com/lib/pq`.
+3. Поставить либу для работы с бд [pq](https://github.com/lib/pq) командой `go get github.com/lib/pq`.
