@@ -52,7 +52,6 @@ type Blockchain struct {
 	network              *Network
 	chs                  *NetworkChannels
 	expectBlocks         bool
-	blockProcessed       bool
 }
 
 func (bc *Blockchain) Setup(thisPrv []byte, thisAddr string, validators []*ValidatorNode,
@@ -101,7 +100,6 @@ func (bc *Blockchain) Setup(thisPrv []byte, thisAddr string, validators []*Valid
 	bc.network = new(Network)
 	bc.chs = bc.network.Init()
 	bc.expectBlocks = false
-	bc.blockProcessed = false
 }
 
 func (bc *Blockchain) Start() {
@@ -164,11 +162,9 @@ func (bc *Blockchain) onBlockReceive(data []byte, response chan ResponseMsg) {
 	hash, blockLen := b.Verify(data, bc.prevBlockHash, bc.currentLeader)
 	fmt.Println("block len", blockLen)
 	if blockLen == ERR_BLOCK_CREATOR {
-		bc.blockProcessed = false
 		response <- ResponseMsg{ok: true}
 		return
 	}
-	bc.blockProcessed = true
 
 	if blockLen != len(data) {
 		bc.blockVoting[bc.thisKey.pubKeyByte] = 2
@@ -180,6 +176,7 @@ func (bc *Blockchain) onBlockReceive(data []byte, response chan ResponseMsg) {
 	}
 
 	bc.nextTickTime = bc.getTimeOfNextTick(time.Unix(0, int64(b.timestamp)))
+	bc.currentBock = new(BlocAndkHash)
 	copy(bc.currentBock.hash[:], hash)
 	bc.currentBock.b = &b
 
@@ -333,11 +330,11 @@ func (bc *Blockchain) doTickPreparation() {
 }
 
 func (bc *Blockchain) doTickThisLeader() {
+	bc.currentBock = nil
 	if bc.thisKey.pubKeyByte == bc.currentLeader {
 		fmt.Println("this == leader")
 		bc.expectBlocks = false
 		bc.onThisCreateBlock()
-		bc.blockProcessed = true
 	}
 	timeWhileBlockIsReceived := bc.nextTickTime.Add(-bc.blockVotingTime - bc.justWaitingTime).Sub(time.Now())
 	fmt.Println("sleeping for ", timeWhileBlockIsReceived)
@@ -376,14 +373,13 @@ func (bc *Blockchain) doTickVotingProcessing() {
 	yesVote, noVote := 0, 0
 	for pkey, vote := range bc.blockVoting {
 		if pkey != bc.currentLeader {
-			if vote == 0 {
-				bc.suspiciousValidators[pkey] += 1
-				noVote += 1
-			} else if vote == 1 {
+			if vote == 0x01 {
 				yesVote += 1
 				bc.suspiciousValidators[pkey] = 0
-			} else {
+			} else if vote == 0x02 {
 				noVote += 1
+			} else {
+				bc.suspiciousValidators[pkey] += 1
 			}
 		}
 	}
@@ -394,6 +390,7 @@ func (bc *Blockchain) doTickVotingProcessing() {
 		//запись блока в БД
 		bc.updateUnrecordedTrans()
 		bc.chainSize += 1
+		bc.suspiciousValidators[bc.currentLeader] = 0
 	} else if bc.currentLeader != bc.thisKey.pubKeyByte {
 		fmt.Println("block rejected")
 		bc.suspiciousValidators[bc.currentLeader] += 1
@@ -421,6 +418,7 @@ func (bc *Blockchain) onThisCreateBlock() {
 	b.CreateBlock(bc.unrecordedTrans[:transSize], bc.prevBlockHash, bc.thisKey)
 	blockBytes := b.ToBytes()
 	hash := b.HashBlock(blockBytes)
+	bc.currentBock = new(BlocAndkHash)
 	copy(bc.currentBock.hash[:], hash)
 	bc.currentBock.b = &b
 
