@@ -391,7 +391,6 @@ func (bc *Blockchain) doTickVotingProcessing() {
 	} else if bc.currentLeader != bc.thisKey.pubKeyByte {
 		fmt.Println("block rejected")
 		bc.suspiciousValidators[bc.currentLeader] += 1
-		fmt.Println(bc.currentLeader)
 	}
 	fmt.Println("vote kick check")
 	bc.tryKickValidator()
