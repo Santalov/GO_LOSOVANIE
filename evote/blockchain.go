@@ -86,7 +86,6 @@ func (bc *Blockchain) Setup(thisPrv []byte, thisAddr string, validators []*Valid
 			bc.hostsExceptMe = append(bc.hostsExceptMe, validator.addr)
 		}
 	}
-
 	bc.prevBlockHash = startBlockHash
 
 	bc.chainSize = 0
@@ -376,7 +375,7 @@ func (bc *Blockchain) doTickVotingProcessing() {
 				bc.suspiciousValidators[pkey] = 0
 			} else if vote == 0x02 {
 				noVote += 1
-			} else {
+			} else if pkey != bc.thisKey.pubKeyByte {
 				bc.suspiciousValidators[pkey] += 1
 			}
 		}
@@ -392,6 +391,7 @@ func (bc *Blockchain) doTickVotingProcessing() {
 	} else if bc.currentLeader != bc.thisKey.pubKeyByte {
 		fmt.Println("block rejected")
 		bc.suspiciousValidators[bc.currentLeader] += 1
+		fmt.Println(bc.currentLeader)
 	}
 	fmt.Println("vote kick check")
 	bc.tryKickValidator()
