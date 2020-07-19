@@ -87,8 +87,6 @@ func (bc *Blockchain) Setup(thisPrv []byte, thisAddr string, validators []*Valid
 		}
 	}
 
-	var blockInCons BlocAndkHash
-	bc.currentBock = &blockInCons
 	bc.prevBlockHash = startBlockHash
 
 	bc.chainSize = 0
@@ -315,6 +313,7 @@ func (bc *Blockchain) doTickPreparation() {
 	fmt.Println("process kick")
 	bc.processKick()
 
+	bc.currentBock = nil
 	bc.currentLeader = bc.validators[bc.chainSize%uint64(len(bc.validators))].pkey
 	bc.nextTickTime = bc.getTimeOfNextTick(time.Now())
 	if bc.expectBlocks == false {
@@ -330,7 +329,6 @@ func (bc *Blockchain) doTickPreparation() {
 }
 
 func (bc *Blockchain) doTickThisLeader() {
-	bc.currentBock = nil
 	if bc.thisKey.pubKeyByte == bc.currentLeader {
 		fmt.Println("this == leader")
 		bc.expectBlocks = false
