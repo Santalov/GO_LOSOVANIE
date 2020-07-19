@@ -292,10 +292,7 @@ func (bc *Blockchain) processKick() {
 	var clearedSuspiciousValidators = make(map[[PKEY_SIZE]byte]int)
 	for _, validator := range bc.validators {
 		bc.kickVoting[validator.pkey] = 0
-		val, ok := bc.suspiciousValidators[validator.pkey]
-		if ok {
-			clearedSuspiciousValidators[validator.pkey] = val
-		}
+		clearedSuspiciousValidators[validator.pkey] = bc.suspiciousValidators[validator.pkey]
 	}
 	bc.suspiciousValidators = clearedSuspiciousValidators
 }
