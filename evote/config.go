@@ -12,8 +12,9 @@ type globalConfigRaw struct {
 		Pkey string `json:"pkey"`
 		Addr string `json:"addr"`
 	} `json:"validators"`
-	NextLeaderPeriod time.Duration `json:"next_leader_period"`
-	BlockAppendTime  time.Duration `json:"block_append_time"`
+	BlockAppendTime time.Duration `json:"block_append_time"`
+	BlockVotingTime time.Duration `json:"block_voting_time"`
+	JustWaitingTime time.Duration `json:"just_waiting_time"`
 }
 
 type localConfigRaw struct {
@@ -23,9 +24,10 @@ type localConfigRaw struct {
 }
 
 type GlobalConfig struct {
-	Validators       []*ValidatorNode
-	NextLeaderPeriod time.Duration
-	BlockAppendTime  time.Duration
+	Validators      []*ValidatorNode
+	BlockAppendTime time.Duration
+	BlockVotingTime time.Duration
+	JustWaitingTime time.Duration
 }
 
 type LocalConfig struct {
@@ -64,8 +66,9 @@ func LoadConfig(pathToGlobalConfig, pathToLocalConfig string) (*GlobalConfig, *L
 		copy(validator.pkey[:], pkey)
 		validator.addr = validatorRaw.Addr
 		gConf.Validators = append(gConf.Validators, validator)
-		gConf.NextLeaderPeriod = gConfRaw.NextLeaderPeriod
 		gConf.BlockAppendTime = gConfRaw.BlockAppendTime
+		gConf.BlockVotingTime = gConfRaw.BlockVotingTime
+		gConf.JustWaitingTime = gConfRaw.JustWaitingTime
 	}
 	myPkey, err := hex.DecodeString(lConfRaw.Pkey)
 	if err != nil {

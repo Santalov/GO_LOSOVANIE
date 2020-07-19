@@ -21,6 +21,8 @@ func main() {
 		panic(err)
 	}
 	bc := new(evote.Blockchain)
-	bc.Setup(lConf.Prv, lConf.Addr, gConf.Validators, time.Now(), gConf.NextLeaderPeriod, gConf.BlockAppendTime, evote.ZERO_ARRAY_HASH)
+	bc.Setup(lConf.Prv, lConf.Addr, gConf.Validators,
+		gConf.BlockAppendTime, gConf.BlockVotingTime, gConf.JustWaitingTime, 10*time.Second,
+		evote.ZERO_ARRAY_HASH)
 	bc.Start()
 }

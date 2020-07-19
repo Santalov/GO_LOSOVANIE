@@ -35,9 +35,11 @@ type Blockchain struct {
 	currentLeader        [PKEY_SIZE]byte
 	currentBock          *BlocAndkHash
 	unrecordedTrans      []TransAndHash
-	nextLeaderVoteTime   time.Time
-	nextLeaderPeriod     time.Duration
+	nextTickTime         time.Time
 	blockAppendTime      time.Duration
+	blockVotingTime      time.Duration
+	justWaitingTime      time.Duration
+	startupDelay         time.Duration
 	chainSize            uint64
 	blockVoting          map[[PKEY_SIZE]byte]int
 	kickVoting           map[[PKEY_SIZE]byte]int
@@ -45,6 +47,7 @@ type Blockchain struct {
 	tickPreparation      chan bool // каналы, которые задают цикл работы ноды
 	tickThisLeader       chan bool
 	tickVoting           chan bool
+	tickVotingProcessing chan bool
 	done                 chan bool // канал, сообщение в котором заставляет завершиться прогу
 	network              *Network
 	chs                  *NetworkChannels
@@ -53,7 +56,9 @@ type Blockchain struct {
 }
 
 func (bc *Blockchain) Setup(thisPrv []byte, thisAddr string, validators []*ValidatorNode,
-	nextVoteTime time.Time, nextPeriod time.Duration, appendTime time.Duration, startBlockHash [HASH_SIZE]byte) {
+	blockAppendTime time.Duration, blockVotingTime time.Duration,
+	justWaitingTime time.Duration, startupDelay time.Duration,
+	startBlockHash [HASH_SIZE]byte) {
 	//зачатки констуруктора q
 	var k CryptoKeysData
 	k.SetupKeys(thisPrv)
@@ -62,9 +67,12 @@ func (bc *Blockchain) Setup(thisPrv []byte, thisAddr string, validators []*Valid
 
 	bc.validators = validators
 
-	bc.nextLeaderVoteTime = nextVoteTime
-	bc.nextLeaderPeriod = nextPeriod
-	bc.blockAppendTime = appendTime
+	bc.blockAppendTime = blockAppendTime
+	bc.blockVotingTime = blockVotingTime
+	bc.justWaitingTime = justWaitingTime
+	bc.startupDelay = startupDelay
+	bc.nextTickTime = time.Now().Add(blockAppendTime).Add(blockVotingTime).Add(justWaitingTime)
+
 	bc.hostsExceptMe = make([]string, 0)
 
 	bc.blockVoting = make(map[[PKEY_SIZE]byte]int)
@@ -88,6 +96,7 @@ func (bc *Blockchain) Setup(thisPrv []byte, thisAddr string, validators []*Valid
 	bc.tickPreparation = make(chan bool, 1)
 	bc.tickThisLeader = make(chan bool, 1)
 	bc.tickVoting = make(chan bool, 1)
+	bc.tickVotingProcessing = make(chan bool, 1)
 	bc.done = make(chan bool, 1)
 	bc.network = new(Network)
 	bc.chs = bc.network.Init()
@@ -116,7 +125,9 @@ func (bc *Blockchain) Start() {
 		case <-bc.tickThisLeader:
 			bc.doTickThisLeader() // потом эта функция положит сигнал в bc.tickVoting
 		case <-bc.tickVoting:
-			bc.doTickVoting() // эта положит в bc.tickPreparation
+			bc.doTickVoting() // эта положит в bc.tickVotingProcessing
+		case <-bc.tickVotingProcessing:
+			bc.doTickVotingProcessing() // эта положит в bc.tickPreparation
 		case msg := <-bc.chs.blocks:
 			// нужно обработчики блоков вынести в отдельные горутины
 			fmt.Println("got new block")
@@ -137,6 +148,10 @@ func (bc *Blockchain) Start() {
 	}
 }
 
+func (bc *Blockchain) getTimeOfNextTick(lastBlockTime time.Time) time.Time {
+	return lastBlockTime.Add(bc.blockAppendTime).Add(bc.blockVotingTime).Add(bc.justWaitingTime)
+}
+
 func (bc *Blockchain) onBlockReceive(data []byte, response chan ResponseMsg) {
 	if !bc.expectBlocks {
 		response <- ResponseMsg{
@@ -154,17 +169,9 @@ func (bc *Blockchain) onBlockReceive(data []byte, response chan ResponseMsg) {
 		return
 	}
 	bc.blockProcessed = true
-	var voteData [HASH_SIZE + PKEY_SIZE + 1 + SIG_SIZE]byte
-	copy(voteData[:HASH_SIZE], bc.prevBlockHash[:])
-	copy(voteData[HASH_SIZE:HASH_SIZE+PKEY_SIZE], bc.thisKey.pubKeyByte[:])
-	var vote [1]byte
+
 	if blockLen != len(data) {
 		bc.blockVoting[bc.thisKey.pubKeyByte] = 2
-		vote[0] = 0x02
-		copy(voteData[HASH_SIZE+PKEY_SIZE:HASH_SIZE+PKEY_SIZE+1], vote[:])
-		copy(voteData[HASH_SIZE+PKEY_SIZE+1:], ZERO_ARRAY_SIG[:])
-		copy(voteData[HASH_SIZE+PKEY_SIZE+1:], bc.thisKey.Sign(voteData[:]))
-		go bc.network.SendVoteToAll(bc.hostsExceptMe, voteData[:])
 		response <- ResponseMsg{
 			ok:    false,
 			error: "incorrect block",
@@ -172,16 +179,12 @@ func (bc *Blockchain) onBlockReceive(data []byte, response chan ResponseMsg) {
 		return
 	}
 
-	bc.nextLeaderVoteTime = time.Unix(0, int64(b.timestamp)).Add(bc.nextLeaderPeriod)
+	bc.nextTickTime = bc.getTimeOfNextTick(time.Unix(0, int64(b.timestamp)))
 	copy(bc.currentBock.hash[:], hash)
 	bc.currentBock.b = &b
 
 	bc.blockVoting[bc.thisKey.pubKeyByte] = 1
-	vote[0] = 0x01
-	copy(voteData[HASH_SIZE+PKEY_SIZE:HASH_SIZE+PKEY_SIZE+1], vote[:])
-	copy(voteData[HASH_SIZE+PKEY_SIZE+1:], ZERO_ARRAY_SIG[:])
-	copy(voteData[HASH_SIZE+PKEY_SIZE+1:], bc.thisKey.Sign(voteData[:]))
-	go bc.network.SendVoteToAll(bc.hostsExceptMe, voteData[:])
+	// голосование за/против блока в doTickVoting
 	response <- ResponseMsg{ok: true}
 }
 
@@ -316,11 +319,12 @@ func (bc *Blockchain) doTickPreparation() {
 	bc.processKick()
 
 	bc.currentLeader = bc.validators[bc.chainSize%uint64(len(bc.validators))].pkey
-	bc.nextLeaderVoteTime = time.Now().Add(bc.nextLeaderPeriod)
+	bc.nextTickTime = bc.getTimeOfNextTick(time.Now())
 	if bc.expectBlocks == false {
 		bc.expectBlocks = true
+		bc.nextTickTime = bc.nextTickTime.Add(bc.startupDelay)
 		go func() {
-			time.Sleep(10 * time.Second)
+			time.Sleep(bc.startupDelay)
 			bc.tickThisLeader <- true
 		}()
 	} else {
@@ -335,42 +339,64 @@ func (bc *Blockchain) doTickThisLeader() {
 		bc.onThisCreateBlock()
 		bc.blockProcessed = true
 	}
-	timeWhileBlockIsReceived := bc.nextLeaderVoteTime.Add(-bc.blockAppendTime).Sub(time.Now())
+	timeWhileBlockIsReceived := bc.nextTickTime.Add(-bc.blockVotingTime - bc.justWaitingTime).Sub(time.Now())
 	fmt.Println("sleeping for ", timeWhileBlockIsReceived)
 	go func() {
-		time.Sleep(timeWhileBlockIsReceived)
+		time.Sleep(timeWhileBlockIsReceived) // sleep for blockAppendTime
 		bc.tickVoting <- true
 	}()
 }
 
+// Фаза голосования, если блока не было, то голоса отправляются против
 func (bc *Blockchain) doTickVoting() {
+	fmt.Println("block voting time")
+	var voteData [HASH_SIZE + PKEY_SIZE + 1 + SIG_SIZE]byte
+	copy(voteData[:HASH_SIZE], bc.prevBlockHash[:])
+	copy(voteData[HASH_SIZE:HASH_SIZE+PKEY_SIZE], bc.thisKey.pubKeyByte[:])
+	var vote [1]byte
+	if bc.currentBock != nil {
+		vote[0] = 0x01
+	} else {
+		vote[0] = 0x02
+	}
+	copy(voteData[HASH_SIZE+PKEY_SIZE:HASH_SIZE+PKEY_SIZE+1], vote[:])
+	copy(voteData[HASH_SIZE+PKEY_SIZE+1:], ZERO_ARRAY_SIG[:])
+	copy(voteData[HASH_SIZE+PKEY_SIZE+1:], bc.thisKey.Sign(voteData[:]))
+	go bc.network.SendVoteToAll(bc.hostsExceptMe, voteData[:])
+	var timeWhileVotesAreReceived = bc.nextTickTime.Add(-bc.justWaitingTime).Sub(time.Now())
+	fmt.Println("sleeping for ", timeWhileVotesAreReceived)
+	go func() {
+		time.Sleep(timeWhileVotesAreReceived) // sleep from blockVotingTime
+		bc.tickVotingProcessing <- true
+	}()
+}
+
+func (bc *Blockchain) doTickVotingProcessing() {
 	fmt.Println("process voting")
-	if bc.blockProcessed {
-		yesVote, noVote := 0, 0
-		for pkey, vote := range bc.blockVoting {
-			if pkey != bc.currentLeader {
-				if vote == 0 {
-					bc.suspiciousValidators[pkey] += 1
-					noVote += 1
-				} else if vote == 1 {
-					yesVote += 1
-					bc.suspiciousValidators[pkey] = 0
-				} else {
-					noVote += 1
-				}
+	yesVote, noVote := 0, 0
+	for pkey, vote := range bc.blockVoting {
+		if pkey != bc.currentLeader {
+			if vote == 0 {
+				bc.suspiciousValidators[pkey] += 1
+				noVote += 1
+			} else if vote == 1 {
+				yesVote += 1
+				bc.suspiciousValidators[pkey] = 0
+			} else {
+				noVote += 1
 			}
 		}
+	}
 
-		if noVote < yesVote {
-			fmt.Println("block accepted")
-			bc.updatePrevHashBlock()
-			//запись блока в БД
-			bc.updateUnrecordedTrans()
-			bc.chainSize += 1
-		} else if bc.currentLeader != bc.thisKey.pubKeyByte {
-			fmt.Println("block rejected")
-			bc.suspiciousValidators[bc.currentLeader] += 1
-		}
+	if noVote < yesVote {
+		fmt.Println("block accepted")
+		bc.updatePrevHashBlock()
+		//запись блока в БД
+		bc.updateUnrecordedTrans()
+		bc.chainSize += 1
+	} else if bc.currentLeader != bc.thisKey.pubKeyByte {
+		fmt.Println("block rejected")
+		bc.suspiciousValidators[bc.currentLeader] += 1
 	}
 	fmt.Println("vote kick check")
 	bc.tryKickValidator()
@@ -378,10 +404,10 @@ func (bc *Blockchain) doTickVoting() {
 	fmt.Println("clear block voting")
 	bc.ClearBlockVoting()  // чистим голоса за блок до начала получения новых блоков
 	bc.expectBlocks = true // меняем флаг заранее, чтобы не пропустить блок
-	timeBeforeNextTick := bc.nextLeaderVoteTime.Sub(time.Now())
+	timeBeforeNextTick := bc.nextTickTime.Sub(time.Now())
 	fmt.Println("time before next tick", timeBeforeNextTick)
 	go func() {
-		time.Sleep(timeBeforeNextTick)
+		time.Sleep(timeBeforeNextTick) // sleep for justWaitingTime
 		bc.tickPreparation <- true
 	}()
 }
