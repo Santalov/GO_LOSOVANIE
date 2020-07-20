@@ -312,7 +312,6 @@ func (bc *Blockchain) doTickPreparation() {
 	fmt.Println("process kick")
 	bc.processKick()
 
-	bc.currentBock = nil
 	bc.currentLeader = bc.validators[bc.chainSize%uint64(len(bc.validators))].pkey
 	bc.nextTickTime = bc.getTimeOfNextTick(time.Now())
 	if bc.expectBlocks == false {
@@ -401,6 +400,7 @@ func (bc *Blockchain) doTickVotingProcessing() {
 
 	fmt.Println("clear block voting")
 	bc.ClearBlockVoting()  // чистим голоса за блок до начала получения новых блоков
+	bc.currentBock = nil   // очищаем инфу о старом блоке, чтобы быть готовым принимать новые
 	bc.expectBlocks = true // меняем флаг заранее, чтобы не пропустить блок
 	timeBeforeNextTick := bc.nextTickTime.Sub(time.Now())
 	fmt.Println("time before next tick", timeBeforeNextTick)
