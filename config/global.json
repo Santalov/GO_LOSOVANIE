@@ -21,7 +21,7 @@
       "addr": "localhost:37114"
     }
   ],
-  "block_append_time": 15000000000,
-  "block_voting_time": 15000000000,
-  "just_waiting_time": 15000000000
+  "block_append_time": 12000000000,
+  "block_voting_time": 5000000000,
+  "just_waiting_time": 5000000000
 }

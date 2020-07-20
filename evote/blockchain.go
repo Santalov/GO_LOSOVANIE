@@ -25,6 +25,16 @@ type ValidatorNode struct {
 	addr string // адрес вида 1.1.1.1:1337
 }
 
+func hostsExceptGiven(validators []*ValidatorNode, pkey [PKEY_SIZE]byte) []string {
+	hosts := make([]string, 0)
+	for _, validator := range validators {
+		if validator.pkey != pkey {
+			hosts = append(hosts, validator.addr)
+		}
+	}
+	return hosts
+}
+
 type Blockchain struct {
 	thisKey              *CryptoKeysData
 	thisAddr             string
@@ -72,8 +82,6 @@ func (bc *Blockchain) Setup(thisPrv []byte, thisAddr string, validators []*Valid
 	bc.startupDelay = startupDelay
 	bc.nextTickTime = time.Now().Add(blockAppendTime).Add(blockVotingTime).Add(justWaitingTime)
 
-	bc.hostsExceptMe = make([]string, 0)
-
 	bc.blockVoting = make(map[[PKEY_SIZE]byte]int)
 	bc.kickVoting = make(map[[PKEY_SIZE]byte]int)
 	bc.suspiciousValidators = make(map[[PKEY_SIZE]byte]int)
@@ -82,10 +90,8 @@ func (bc *Blockchain) Setup(thisPrv []byte, thisAddr string, validators []*Valid
 		bc.blockVoting[validator.pkey] = 0
 		bc.kickVoting[validator.pkey] = 0
 		bc.suspiciousValidators[validator.pkey] = 0
-		if validator.pkey != bc.thisKey.pubKeyByte {
-			bc.hostsExceptMe = append(bc.hostsExceptMe, validator.addr)
-		}
 	}
+	bc.hostsExceptMe = hostsExceptGiven(bc.validators, bc.thisKey.pubKeyByte)
 	bc.prevBlockHash = startBlockHash
 
 	bc.chainSize = 0
@@ -292,6 +298,7 @@ func (bc *Blockchain) processKick() {
 		clearedSuspiciousValidators[validator.pkey] = bc.suspiciousValidators[validator.pkey]
 	}
 	bc.suspiciousValidators = clearedSuspiciousValidators
+	bc.hostsExceptMe = hostsExceptGiven(bc.validators, bc.thisKey.pubKeyByte)
 }
 
 func (bc *Blockchain) ClearBlockVoting() {
