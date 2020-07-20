@@ -80,7 +80,7 @@ func (bc *Blockchain) Setup(thisPrv []byte, thisAddr string, validators []*Valid
 	bc.blockVotingTime = blockVotingTime
 	bc.justWaitingTime = justWaitingTime
 	bc.startupDelay = startupDelay
-	bc.nextTickTime = time.Now().Add(blockAppendTime).Add(blockVotingTime).Add(justWaitingTime)
+	bc.nextTickTime = bc.getTimeOfNextTick(time.Now())
 
 	bc.blockVoting = make(map[[PKEY_SIZE]byte]int)
 	bc.kickVoting = make(map[[PKEY_SIZE]byte]int)
