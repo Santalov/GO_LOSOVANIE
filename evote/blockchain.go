@@ -292,9 +292,11 @@ func (bc *Blockchain) processKick() {
 		}
 	}
 	bc.kickVoting = make(map[[PKEY_SIZE]byte]int, 0)
+	bc.blockVoting = make(map[[PKEY_SIZE]byte]int)
 	var clearedSuspiciousValidators = make(map[[PKEY_SIZE]byte]int)
 	for _, validator := range bc.validators {
 		bc.kickVoting[validator.pkey] = 0
+		bc.blockVoting[validator.pkey] = 0
 		clearedSuspiciousValidators[validator.pkey] = bc.suspiciousValidators[validator.pkey]
 	}
 	bc.suspiciousValidators = clearedSuspiciousValidators
