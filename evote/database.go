@@ -6,6 +6,74 @@ import (
 	_ "github.com/lib/pq"
 )
 
+// функции ниже нужны, чтоб обрабатывать необязательные поля.
+// В байтовом представлении считается, что отсутствующие необязательные поля принимают нулевое значение и это норм
+// А в бд такое соглашение приводит к ошибкам
+// при поддержании ссылочной целостности и запросам с условием на отсутствие полей
+//
+// Поэтому необязтельные поля с нулевыми значениями преобразуются в nil, который бд преобразует в null
+// Еще одна фича, у массиовов нет значения nil, поэтому они сканируются как срезы
+
+// Transaction.typeVote и Transaction.typeValue не преобразуются к nil, так как на них не завязана ссылочная целостность
+// и преобразование к nil добавляет дополнительную сложность
+
+func hashToSlice(v [HASH_SIZE]byte) []byte {
+	if v == [HASH_SIZE]byte{} {
+		return nil
+	} else {
+		return v[:]
+	}
+}
+
+func sliceToHash(v []byte) [HASH_SIZE]byte {
+	if v == nil {
+		return [HASH_SIZE]byte{}
+	} else {
+		var hash [HASH_SIZE]byte
+		copy(hash[:], v)
+		return hash
+	}
+}
+
+// не откатывает транзу при ошибке
+func getTxInputsAndOutputs(dbTx *sql.Tx, txHash [HASH_SIZE]byte) ([]TransactionInput, []TransactionOutput, error) {
+	inputs := make([]TransactionInput, 0)
+	outputs := make([]TransactionOutput, 0)
+	inputRows, err := dbTx.Query(
+		`SELECT prevtxid, outputindex 
+		FROM input WHERE txid = $1 ORDER BY index`,
+		txHash,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	for inputRows.Next() {
+		var input TransactionInput
+		err := inputRows.Scan(&input.prevId, &input.outIndex)
+		if err != nil {
+			return nil, nil, err
+		}
+		inputs = append(inputs, input)
+	}
+	outputRows, err := dbTx.Query(
+		`SELECT value, publickeyto 
+		FROM output WHERE txid = %s ORDER BY index`,
+		txHash,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	for outputRows.Next() {
+		var output TransactionOutput
+		err := outputRows.Scan(&output.value, &output.pkeyTo)
+		if err != nil {
+			return nil, nil, err
+		}
+		outputs = append(outputs, output)
+	}
+	return inputs, outputs, nil
+}
+
 type Database struct {
 	db *sql.DB
 }
@@ -47,10 +115,10 @@ func (d *Database) saveNextBlock(block *BlocAndkHash) error {
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
 			txId,
 			i,
-			tx.typeValue,
+			hashToSlice(tx.typeValue),
 			tx.typeVote,
 			tx.duration,
-			tx.hashLink,
+			hashToSlice(tx.hashLink),
 			tx.signature,
 			block.hash,
 		)
@@ -87,4 +155,71 @@ func (d *Database) saveNextBlock(block *BlocAndkHash) error {
 	}
 	err = dbTx.Commit()
 	return err
+}
+
+func (d *Database) getBlockByHash(blockHash [HASH_SIZE]byte) (*BlocAndkHash, error) {
+	dbTx, err := d.db.Begin()
+	if err != nil {
+		return nil, err
+	}
+	rows, err := dbTx.Query(
+		`SELECT block.prevBlockHash, block.merkletree, block.timestamp 
+		FROM block WHERE block.blockhash = $1`,
+		blockHash,
+	)
+	if err != nil {
+		_ = dbTx.Rollback()
+		return nil, err
+	}
+	defer rows.Close()
+	if rows.Next() {
+		blockAndHash := new(BlocAndkHash)
+		b := new(Block)
+		blockAndHash.b = b
+		blockAndHash.hash = blockHash
+		err := rows.Scan(&b.prevBlockHash, &b.merkleTree, &b.timestamp)
+		if err != nil {
+			_ = dbTx.Rollback()
+			return nil, err
+		}
+		txRows, err := dbTx.Query(
+			`SELECT txid, typevalue, typevote, duration, hashlink, signature 
+			FROM transaction WHERE transaction.blockhash = $1 ORDER BY transaction.index`,
+			blockHash,
+		)
+		if err != nil {
+			_ = dbTx.Rollback()
+			return nil, err
+		}
+		defer txRows.Close()
+		for txRows.Next() {
+			var typeValue, hashLink []byte
+			var txAndHash TransAndHash
+			txAndHash.transaction = new(Transaction)
+			err := txRows.Scan(
+				&txAndHash.hash,
+				&typeValue,
+				&txAndHash.transaction.typeVote,
+				&txAndHash.transaction.duration,
+				&hashLink,
+				&txAndHash.transaction.signature,
+			)
+			if err != nil {
+				_ = dbTx.Rollback()
+				return nil, err
+			}
+			txAndHash.transaction.typeValue = sliceToHash(typeValue)
+			txAndHash.transaction.hashLink = sliceToHash(hashLink)
+			txAndHash.transaction.inputs, txAndHash.transaction.outputs, err = getTxInputsAndOutputs(dbTx, txAndHash.hash)
+			if err != nil {
+				_ = dbTx.Rollback()
+				return nil, err
+			}
+			b.trans = append(b.trans, txAndHash)
+		}
+		return blockAndHash, nil
+	} else {
+		dbTx.Rollback()
+		return nil, nil
+	}
 }
