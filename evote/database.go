@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"fmt"
 	_ "github.com/lib/pq"
+	"strconv"
+	"strings"
 )
 
 // функции ниже нужны, чтоб обрабатывать необязательные поля.
@@ -157,27 +159,37 @@ func (d *Database) saveNextBlock(block *BlocAndkHash) error {
 	return err
 }
 
-func (d *Database) getBlockByHash(blockHash [HASH_SIZE]byte) (*BlocAndkHash, error) {
+// функция может не найти некоторые блоки (если их нет), но ошибки не будет
+func (d *Database) getBlocksByHashes(blockHashes [][HASH_SIZE]byte) ([]*BlocAndkHash, error) {
 	dbTx, err := d.db.Begin()
 	if err != nil {
 		return nil, err
 	}
-	rows, err := dbTx.Query(
-		`SELECT block.prevBlockHash, block.merkletree, block.timestamp 
-		FROM block WHERE block.blockhash = $1`,
-		blockHash,
-	)
+	argsBuilder := strings.Builder{}
+	for i := range blockHashes {
+		argsBuilder.WriteString("$" + strconv.Itoa(i))
+		if i != len(blockHashes)-1 {
+			argsBuilder.WriteString(", ")
+		}
+	}
+	blocksQuery := "SELECT block.blockhash, block.prevBlockHash, block.merkletree, block.timestamp FROM block WHERE block.blockhash in (?" + strings.Repeat(",?", len(blockHashes)-1) + ")"
+	blockQueryArgs := make([]interface{}, 0)
+	for _, h := range blockHashes {
+		blockQueryArgs = append(blockQueryArgs, h)
+	}
+	rows, err := dbTx.Query(blocksQuery, blockQueryArgs...)
 	if err != nil {
 		_ = dbTx.Rollback()
 		return nil, err
 	}
 	defer rows.Close()
-	if rows.Next() {
+	blocks := make([]*BlocAndkHash, 0)
+	for rows.Next() {
 		blockAndHash := new(BlocAndkHash)
 		b := new(Block)
 		blockAndHash.b = b
-		blockAndHash.hash = blockHash
-		err := rows.Scan(&b.prevBlockHash, &b.merkleTree, &b.timestamp)
+		blocks = append(blocks, blockAndHash)
+		err := rows.Scan(&blockAndHash.hash, &b.prevBlockHash, &b.merkleTree, &b.timestamp)
 		if err != nil {
 			_ = dbTx.Rollback()
 			return nil, err
@@ -185,7 +197,7 @@ func (d *Database) getBlockByHash(blockHash [HASH_SIZE]byte) (*BlocAndkHash, err
 		txRows, err := dbTx.Query(
 			`SELECT txid, typevalue, typevote, duration, hashlink, signature 
 			FROM transaction WHERE transaction.blockhash = $1 ORDER BY transaction.index`,
-			blockHash,
+			blockAndHash.hash,
 		)
 		if err != nil {
 			_ = dbTx.Rollback()
@@ -217,9 +229,6 @@ func (d *Database) getBlockByHash(blockHash [HASH_SIZE]byte) (*BlocAndkHash, err
 			}
 			b.trans = append(b.trans, txAndHash)
 		}
-		return blockAndHash, nil
-	} else {
-		dbTx.Rollback()
-		return nil, nil
 	}
+	return blocks, nil
 }
