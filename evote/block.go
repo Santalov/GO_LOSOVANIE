@@ -67,7 +67,7 @@ func (b *Block) CheckMiningReward(data []byte, creator [PKEY_SIZE]byte) ([]byte,
 
 }
 
-func (b *Block) CreateMiningReward(keys *CryptoKeysData) TransAndHash {
+func (b *Block) CreateMiningReward(keys *CryptoKeysData, curChainSize uint64) TransAndHash {
 	var t Transaction
 	t.inputSize = 0
 	t.outputSize = 1
@@ -76,8 +76,8 @@ func (b *Block) CreateMiningReward(keys *CryptoKeysData) TransAndHash {
 	tOut.pkeyTo = keys.pubKeyByte
 	t.outputs = append(t.outputs, tOut)
 	t.typeValue = ZERO_ARRAY_HASH
-	t.typeVote = 0
-	t.duration = 0
+	t.typeVote = uint32(curChainSize >> 32)
+	t.duration = uint32(curChainSize)
 	t.hashLink = ZERO_ARRAY_HASH
 	t.signature = ZERO_ARRAY_SIG
 	copy(t.signature[:], keys.Sign(t.ToBytes()))
@@ -123,8 +123,9 @@ func (b *Block) HashBlock(data []byte) []byte {
 	return Hash(data)
 }
 
-func (b *Block) CreateBlock(t []TransAndHash, prevHash [HASH_SIZE]byte, key *CryptoKeysData) {
-	b.trans = append(b.trans, b.CreateMiningReward(key))
+func (b *Block) CreateBlock(t []TransAndHash, prevHash [HASH_SIZE]byte,
+		key *CryptoKeysData, curChainSize uint64) {
+	b.trans = append(b.trans, b.CreateMiningReward(key, curChainSize))
 	b.trans = append(b.trans, t...)
 	b.prevBlockHash = prevHash
 	b.merkleTree = b.BuildMerkleTree()
