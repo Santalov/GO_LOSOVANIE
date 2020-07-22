@@ -147,6 +147,30 @@ func (bc *Blockchain) Start() {
 		case msg := <-bc.chs.txsClient:
 			// транза от приложения-клиента
 			fmt.Println("transaction from client", msg)
+		case msg := <-bc.chs.blockAfter:
+			// хеш блока, пришедший в запросе, блок после которого ожидает получить клиент
+			fmt.Println("hash", msg.data)
+			// ответ с ошибкой, например, если блока не было
+			msg.response <- ByteResponse{
+				ok:    false,
+				error: "no such block",
+			}
+			// ответ с блоком
+			block := make([]byte, 0)
+			msg.response <- ByteResponse{
+				ok:   true,
+				data: block,
+			}
+			// запрос на блок
+			blockHash := [HASH_SIZE]byte{}
+			block, err := bc.network.GetBlockAfter("1.1.1.1:1337", blockHash)
+			if err != nil {
+				if err.Error() == "no such block" {
+					// нет такого блока
+				} else {
+					fmt.Println("next block", block)
+				}
+			}
 		}
 	}
 }

@@ -22,6 +22,12 @@ type NetworkMsg struct {
 	response chan ResponseMsg // отсюда сервак ожидает получить результат проверки сообщения
 }
 
+type NetworkByteMsg struct {
+	data     []byte
+	from     string            // адресс отправителя в формате 1.3.3.7:1488
+	response chan ByteResponse // отсюда сервак ожидает получить результат проверки сообщения
+}
+
 type NetworkChannels struct {
 	// Из этих каналов сообщения будет забирать Blockchain
 	// класть в них сообщения будет сервер
@@ -30,11 +36,18 @@ type NetworkChannels struct {
 	txsClient         chan NetworkMsg // транзы от клиентов
 	blockVotes        chan NetworkMsg
 	kickValidatorVote chan NetworkMsg
+	blockAfter        chan NetworkByteMsg
 }
 
 // этими сообщениями Blockchain сообщает результаты проверки
 type ResponseMsg struct {
 	ok    bool
+	error string
+}
+
+type ByteResponse struct {
+	ok    bool
+	data  []byte
 	error string
 }
 
@@ -55,7 +68,7 @@ func (n *Network) Init() *NetworkChannels {
 	http.Handle("/submitBlock", http.HandlerFunc(n.handleSubmitBlock))
 	http.Handle("/blockVote", http.HandlerFunc(n.handleBlockVote))
 	http.Handle("/kickValidatorVote", http.HandlerFunc(n.handleKickValidatorVote))
-	http.Handle()
+	http.Handle("/blockAfter", http.HandlerFunc(n.handleBlockAfter))
 
 	n.chs = NetworkChannels{
 		make(chan NetworkMsg, chanSize),
@@ -63,6 +76,7 @@ func (n *Network) Init() *NetworkChannels {
 		make(chan NetworkMsg, chanSize),
 		make(chan NetworkMsg, chanSize),
 		make(chan NetworkMsg, chanSize),
+		make(chan NetworkByteMsg, chanSize),
 	}
 	return &n.chs
 }
@@ -131,6 +145,7 @@ func makeInfoRequest(host string, response chan string) {
 	}
 }
 
+// вернет массив адресов живых хостов
 func (n *Network) PingHosts(hosts []string) (alive []string) {
 	responses := make(chan string, len(hosts))
 	for _, host := range hosts {
@@ -143,6 +158,24 @@ func (n *Network) PingHosts(hosts []string) (alive []string) {
 		}
 	}
 	return
+}
+
+// отправит запрос на /blockAfter
+func (n *Network) GetBlockAfter(host string, hash [HASH_SIZE]byte) (block []byte, err error) {
+	resp, err := http.Post("http://"+host+"/blockAfter", "application/octet-stream", bytes.NewReader(hash[:]))
+	if err != nil {
+		fmt.Printf("network err: %v\n", err)
+		return nil, err
+	} else {
+		body, _ := ioutil.ReadAll(resp.Body)
+		if resp.StatusCode != http.StatusOK {
+			fmt.Printf("network: server answered with error %v, body: %v\n", resp.Status, string(body))
+			return nil, fmt.Errorf(string(body))
+		} else {
+			block = body
+			return block, nil
+		}
+	}
 }
 
 var successResp = []byte("{\"success\":true}")
@@ -251,4 +284,26 @@ func (n *Network) handleBlockVote(w http.ResponseWriter, req *http.Request) {
 
 func (n *Network) handleKickValidatorVote(w http.ResponseWriter, req *http.Request) {
 	handleBinary(n.chs.kickValidatorVote, w, req)
+}
+
+func (n *Network) handleBlockAfter(w http.ResponseWriter, req *http.Request) {
+	data, err := ioutil.ReadAll(req.Body)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusServiceUnavailable)
+	}
+	ch := make(chan ByteResponse)
+	n.chs.blockAfter <- NetworkByteMsg{
+		data:     data,
+		from:     req.Host,
+		response: ch,
+	}
+	resp := <-ch
+	if !resp.ok {
+		http.Error(w, resp.error, http.StatusBadRequest)
+	} else {
+		_, err := w.Write(resp.data)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		}
+	}
 }
