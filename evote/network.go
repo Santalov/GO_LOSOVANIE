@@ -131,7 +131,7 @@ func makeInfoRequest(host string, response chan string) {
 	}
 }
 
-func (n *Network) pingHosts(hosts []string) (alive []string) {
+func (n *Network) PingHosts(hosts []string) (alive []string) {
 	responses := make(chan string, len(hosts))
 	for _, host := range hosts {
 		go makeInfoRequest(host, responses)
