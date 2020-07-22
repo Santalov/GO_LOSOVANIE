@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"fmt"
 	_ "github.com/lib/pq"
-	"strconv"
 	"strings"
 )
 
@@ -165,14 +164,8 @@ func (d *Database) getBlocksByHashes(blockHashes [][HASH_SIZE]byte) ([]*BlocAndk
 	if err != nil {
 		return nil, err
 	}
-	argsBuilder := strings.Builder{}
-	for i := range blockHashes {
-		argsBuilder.WriteString("$" + strconv.Itoa(i))
-		if i != len(blockHashes)-1 {
-			argsBuilder.WriteString(", ")
-		}
-	}
-	blocksQuery := "SELECT block.blockhash, block.prevBlockHash, block.merkletree, block.timestamp FROM block WHERE block.blockhash in (?" + strings.Repeat(",?", len(blockHashes)-1) + ")"
+	blocksQuery := "SELECT block.blockhash, block.prevBlockHash, block.merkletree, block.timestamp " +
+		"FROM block WHERE block.blockhash in (?" + strings.Repeat(",?", len(blockHashes)-1) + ")"
 	blockQueryArgs := make([]interface{}, 0)
 	for _, h := range blockHashes {
 		blockQueryArgs = append(blockQueryArgs, h)
@@ -230,5 +223,55 @@ func (d *Database) getBlocksByHashes(blockHashes [][HASH_SIZE]byte) ([]*BlocAndk
 			b.trans = append(b.trans, txAndHash)
 		}
 	}
+	err = dbTx.Commit()
+	if err != nil {
+		return nil, err
+	}
 	return blocks, nil
+}
+
+func (d *Database) getTxsByHashes(txHashes [][HASH_SIZE]byte) ([]TransAndHash, error) {
+	dbTx, err := d.db.Begin()
+	if err != nil {
+		return nil, err
+	}
+	txQuery := "SELECT txid, typevalue, typevote, duration, hashLink, signature " +
+		"FROM transaction WHERE transaction.txid in (?" + strings.Repeat(",?", len(txHashes)-1) + ")"
+	txQueryArgs := make([]interface{}, 0)
+	for _, h := range txHashes {
+		txQueryArgs = append(txQueryArgs, h)
+	}
+	txRows, err := dbTx.Query(txQuery, txQueryArgs...)
+	if err != nil {
+		_ = dbTx.Rollback()
+		return nil, err
+	}
+	defer txRows.Close()
+	txs := make([]TransAndHash, 0)
+	for txRows.Next() {
+		var typeValue, hashLink []byte
+		var txAndHash TransAndHash
+		txAndHash.transaction = new(Transaction)
+		err := txRows.Scan(
+			&txAndHash.hash,
+			&typeValue,
+			&txAndHash.transaction.typeVote,
+			&txAndHash.transaction.duration,
+			&hashLink,
+			&txAndHash.transaction.signature,
+		)
+		if err != nil {
+			_ = dbTx.Rollback()
+			return nil, err
+		}
+		txAndHash.transaction.typeValue = sliceToHash(typeValue)
+		txAndHash.transaction.hashLink = sliceToHash(hashLink)
+		txAndHash.transaction.inputs, txAndHash.transaction.outputs, err = getTxInputsAndOutputs(dbTx, txAndHash.hash)
+		if err != nil {
+			_ = dbTx.Rollback()
+			return nil, err
+		}
+		txs = append(txs, txAndHash)
+	}
+	return txs, nil
 }
