@@ -51,6 +51,7 @@ type Blockchain struct {
 	justWaitingTime      time.Duration
 	startupDelay         time.Duration
 	chainSize            uint64
+	genBlocksCount       uint64
 	blockVoting          map[[PKEY_SIZE]byte]int
 	kickVoting           map[[PKEY_SIZE]byte]int
 	suspiciousValidators map[[PKEY_SIZE]byte]int
@@ -95,6 +96,7 @@ func (bc *Blockchain) Setup(thisPrv []byte, thisAddr string, validators []*Valid
 	bc.prevBlockHash = startBlockHash
 
 	bc.chainSize = 0
+	bc.genBlocksCount = 0
 	bc.tickPreparation = make(chan bool, 1)
 	bc.tickThisLeader = make(chan bool, 1)
 	bc.tickVoting = make(chan bool, 1)
@@ -321,7 +323,7 @@ func (bc *Blockchain) doTickPreparation() {
 	fmt.Println("process kick")
 	bc.processKick()
 
-	bc.currentLeader = bc.validators[bc.chainSize%uint64(len(bc.validators))].pkey
+	bc.currentLeader = bc.validators[bc.genBlocksCount%uint64(len(bc.validators))].pkey
 	bc.nextTickTime = bc.getTimeOfNextTick(time.Now())
 	if bc.expectBlocks == false {
 		bc.expectBlocks = true
@@ -404,6 +406,7 @@ func (bc *Blockchain) doTickVotingProcessing() {
 		fmt.Println("block rejected")
 		bc.suspiciousValidators[bc.currentLeader] += 1
 	}
+	bc.genBlocksCount += 1
 	fmt.Println("vote kick check")
 	bc.tryKickValidator()
 
@@ -425,7 +428,7 @@ func (bc *Blockchain) onThisCreateBlock() {
 	if transSize > MAX_TRANS_SIZE {
 		transSize = MAX_TRANS_SIZE
 	}
-	b.CreateBlock(bc.unrecordedTrans[:transSize], bc.prevBlockHash, bc.thisKey)
+	b.CreateBlock(bc.unrecordedTrans[:transSize], bc.prevBlockHash, bc.thisKey, bc.chainSize)
 	blockBytes := b.ToBytes()
 	hash := b.HashBlock(blockBytes)
 	bc.currentBock = new(BlocAndkHash)
