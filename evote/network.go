@@ -55,6 +55,7 @@ func (n *Network) Init() *NetworkChannels {
 	http.Handle("/submitBlock", http.HandlerFunc(n.handleSubmitBlock))
 	http.Handle("/blockVote", http.HandlerFunc(n.handleBlockVote))
 	http.Handle("/kickValidatorVote", http.HandlerFunc(n.handleKickValidatorVote))
+	http.Handle()
 
 	n.chs = NetworkChannels{
 		make(chan NetworkMsg, chanSize),
@@ -111,6 +112,37 @@ func (n *Network) SendVoteToAll(hosts []string, data []byte) {
 
 func (n *Network) SendKickMsgToAll(hosts []string, data []byte) {
 	n.sendBinaryToAll(hosts, data, "/kickValidatorVote")
+}
+
+func makeInfoRequest(host string, response chan string) {
+	resp, err := http.Get("http://" + host + "/info")
+	if err != nil {
+		fmt.Println("network err: ", err)
+		response <- ""
+	} else {
+		if resp.StatusCode != http.StatusOK {
+			fmt.Println()
+			body, _ := ioutil.ReadAll(resp.Body)
+			fmt.Printf("network: server answered with error %v, body: %v\n", resp.Status, string(body))
+			response <- ""
+		} else {
+			response <- host
+		}
+	}
+}
+
+func (n *Network) pingHosts(hosts []string) (alive []string) {
+	responses := make(chan string, len(hosts))
+	for _, host := range hosts {
+		go makeInfoRequest(host, responses)
+	}
+	for _ = range hosts {
+		h := <-responses
+		if h != "" {
+			alive = append(alive, h)
+		}
+	}
+	return
 }
 
 var successResp = []byte("{\"success\":true}")
