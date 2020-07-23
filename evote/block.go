@@ -56,7 +56,7 @@ func (b *Block) CheckMiningReward(data []byte, creator [PKEY_SIZE]byte) ([]byte,
 	}
 
 	var pkey = t.outputs[0].pkeyTo
-	if pkey != creator {
+	if creator[0] != 0x00 && pkey != creator {
 		return nil, nil, ERR_BLOCK_CREATOR
 	}
 	if !VerifyData(data[:transLen-SIG_SIZE], t.signature[:], pkey) {

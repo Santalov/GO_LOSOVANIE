@@ -31,12 +31,14 @@ type NetworkByteMsg struct {
 type NetworkChannels struct {
 	// Из этих каналов сообщения будет забирать Blockchain
 	// класть в них сообщения будет сервер
-	blocks            chan NetworkMsg
-	txsValidator      chan NetworkMsg // транзы от других валидаторов
-	txsClient         chan NetworkMsg // транзы от клиентов
-	blockVotes        chan NetworkMsg
-	kickValidatorVote chan NetworkMsg
-	blockAfter        chan NetworkByteMsg
+	blocks              chan NetworkMsg
+	txsValidator        chan NetworkMsg // транзы от других валидаторов
+	txsClient           chan NetworkMsg // транзы от клиентов
+	blockVotes          chan NetworkMsg
+	kickValidatorVote   chan NetworkMsg
+	appendValidatorVote chan NetworkMsg
+	appendViewer	    chan NetworkByteMsg
+	blockAfter          chan NetworkByteMsg
 }
 
 // этими сообщениями Blockchain сообщает результаты проверки
@@ -68,7 +70,9 @@ func (n *Network) Init() *NetworkChannels {
 	http.Handle("/submitBlock", http.HandlerFunc(n.handleSubmitBlock))
 	http.Handle("/blockVote", http.HandlerFunc(n.handleBlockVote))
 	http.Handle("/kickValidatorVote", http.HandlerFunc(n.handleKickValidatorVote))
+	http.Handle("/appendViewer", http.HandlerFunc(n.handleAppendViewer))
 	http.Handle("/blockAfter", http.HandlerFunc(n.handleBlockAfter))
+	http.Handle("/voteAppendValidator", http.HandlerFunc(n.handleAppendValidatorVote))
 
 	n.chs = NetworkChannels{
 		make(chan NetworkMsg, chanSize),
@@ -76,6 +80,8 @@ func (n *Network) Init() *NetworkChannels {
 		make(chan NetworkMsg, chanSize),
 		make(chan NetworkMsg, chanSize),
 		make(chan NetworkMsg, chanSize),
+		make(chan NetworkMsg, chanSize),
+		make(chan NetworkByteMsg, chanSize),
 		make(chan NetworkByteMsg, chanSize),
 	}
 	return &n.chs
@@ -122,6 +128,10 @@ func (n *Network) SendTxToAll(hosts []string, data []byte) {
 
 func (n *Network) SendVoteToAll(hosts []string, data []byte) {
 	n.sendBinaryToAll(hosts, data, "/blockVote")
+}
+
+func (n *Network) SendVoteAppendValidatorMsgToAll(hosts []string, data []byte) {
+	n.sendBinaryToAll(hosts, data, "/voteAppendValidator")
 }
 
 func (n *Network) SendKickMsgToAll(hosts []string, data []byte) {
@@ -174,6 +184,23 @@ func (n *Network) GetBlockAfter(host string, hash [HASH_SIZE]byte) (block []byte
 		} else {
 			block = body
 			return block, nil
+		}
+	}
+}
+
+func (n *Network) SendAppendViewerMsg(host string, data []byte) (pkey []byte, err error) {
+	resp, err := http.Post("http://"+host+"/appendViewer", "application/octet-stream", bytes.NewReader(data))
+	if err != nil {
+		fmt.Printf("network err: %v\n", err)
+		return nil, err
+	} else {
+		body, _ := ioutil.ReadAll(resp.Body)
+		if resp.StatusCode != http.StatusOK {
+			fmt.Printf("network: server answered with error %v, body: %v\n", resp.Status, string(body))
+			return nil, fmt.Errorf(string(body))
+		} else {
+			pkey = body
+			return pkey, nil
 		}
 	}
 }
@@ -282,8 +309,35 @@ func (n *Network) handleBlockVote(w http.ResponseWriter, req *http.Request) {
 	handleBinary(n.chs.blockVotes, w, req)
 }
 
+func (n *Network) handleAppendValidatorVote(w http.ResponseWriter, req *http.Request) {
+	handleBinary(n.chs.appendValidatorVote, w, req)
+}
+
+
 func (n *Network) handleKickValidatorVote(w http.ResponseWriter, req *http.Request) {
 	handleBinary(n.chs.kickValidatorVote, w, req)
+}
+
+func (n *Network) handleAppendViewer(w http.ResponseWriter, req *http.Request) {
+	data, err := ioutil.ReadAll(req.Body)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusServiceUnavailable)
+	}
+	ch := make(chan ByteResponse)
+	n.chs.appendViewer <- NetworkByteMsg{
+		data:     data,
+		from:     req.Host,
+		response: ch,
+	}
+	resp := <-ch
+	if !resp.ok {
+		http.Error(w, resp.error, http.StatusBadRequest)
+	} else {
+		_, err := w.Write(resp.data)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		}
+	}
 }
 
 func (n *Network) handleBlockAfter(w http.ResponseWriter, req *http.Request) {

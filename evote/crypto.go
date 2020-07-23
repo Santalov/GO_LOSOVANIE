@@ -38,12 +38,17 @@ func (keys *CryptoKeysData) SetupKeys(prv []byte) {
 	copy(keys.pubKeyByte[:], append(tmp, pkeyX[:]...))
 }
 
-func (keys *CryptoKeysData) Sign(hash []byte) []byte {
-	var res, err = keys.privateKey.SignDigest(hash, rand.Reader)
+func (keys *CryptoKeysData) Sign(data []byte) []byte {
+	var res, err = keys.privateKey.SignDigest(data, rand.Reader)
 	if err != nil {
 		fmt.Println("sign error", err)
 	}
 	return res
+}
+
+func (keys *CryptoKeysData) AppendSign(data []byte) []byte {
+	res := keys.Sign(append(data, ZERO_ARRAY_SIG[:]...))
+	return append(data, res...)
 }
 
 func VerifyData(data, signature []byte, pkey [PKEY_SIZE]byte) bool {
