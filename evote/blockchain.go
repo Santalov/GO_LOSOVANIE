@@ -430,6 +430,8 @@ func (bc *Blockchain) doTickPreparation() {
 		bc.currentLeader = bc.activeValidators[bc.genBlocksCount%uint64(len(bc.activeValidators))]
 	} else {
 		bc.getMissingBlock(bc.activeValidators[(bc.chainSize+1) % uint64(len(bc.activeValidators))].addr)
+		timeSleep := bc.nextTickTime.Sub(time.Now())
+		time.Sleep(timeSleep)
 	}
 	bc.nextTickTime = bc.getTimeOfNextTick(time.Now())
 	bc.tickThisLeader <- true
