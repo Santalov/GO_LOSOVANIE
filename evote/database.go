@@ -295,6 +295,20 @@ func (d *Database) GetBlocksByHashes(blockHashes [][HASH_SIZE]byte) ([]*BlocAndk
 	return blocks, nil
 }
 
+func (d *Database) GetTxByHash(hash [HASH_SIZE]byte) (*Transaction, error) {
+	transAndHash, err := d.GetTxsByHashes([][HASH_SIZE]byte{hash})
+	if err != nil {
+		return nil, err
+	}
+	if len(transAndHash) < 1 {
+		return nil, nil
+	} else if len(transAndHash) == 1 {
+		return transAndHash[0].transaction, nil
+	} else {
+		panic("got too much transactions")
+	}
+}
+
 // не все транзы из перечисленных в txHashes могут быть в ответе
 // (если таких транз нет в бд)
 func (d *Database) GetTxsByHashes(txHashes [][HASH_SIZE]byte) ([]TransAndHash, error) {
