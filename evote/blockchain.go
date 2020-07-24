@@ -63,6 +63,7 @@ type Blockchain struct {
 	chs                  *NetworkChannels
 	expectBlocks         bool
 	validatorStatus      int
+	db                   *Database
 
 	//map для удобного получения валидаторов
 	addrToValidator map[string]*ValidatorNode
@@ -72,11 +73,18 @@ type Blockchain struct {
 func (bc *Blockchain) Setup(thisPrv []byte, thisAddr string, validators []*ValidatorNode,
 	blockAppendTime time.Duration, blockVotingTime time.Duration,
 	justWaitingTime time.Duration, startupDelay time.Duration,
-	startBlockHash [HASH_SIZE]byte) {
+	startBlockHash [HASH_SIZE]byte, dbPort int) {
 	//зачатки констуруктора q
 	var k CryptoKeysData
 	k.SetupKeys(thisPrv)
 	bc.thisKey = &k
+
+	bc.blockVoting = make(map[*ValidatorNode]int)
+	bc.kickVoting = make(map[*ValidatorNode]int)
+	bc.suspiciousValidators = make(map[*ValidatorNode]int)
+	bc.appendVoting = make(map[*ValidatorNode]int)
+	bc.addrToValidator = make(map[string]*ValidatorNode)
+	bc.pkeyToValidator = make(map[[PKEY_SIZE]byte]*ValidatorNode)
 
 	bc.allValidators = validators
 	for _, v := range bc.allValidators {
@@ -92,11 +100,6 @@ func (bc *Blockchain) Setup(thisPrv []byte, thisAddr string, validators []*Valid
 	bc.justWaitingTime = justWaitingTime
 	bc.nextTickTime = bc.getTimeOfNextTick(time.Now())
 
-	bc.blockVoting = make(map[*ValidatorNode]int)
-	bc.kickVoting = make(map[*ValidatorNode]int)
-	bc.suspiciousValidators = make(map[*ValidatorNode]int)
-	bc.appendVoting = make(map[*ValidatorNode]int)
-
 	//load prev from DB
 	bc.prevBlockHash = startBlockHash
 
@@ -111,6 +114,12 @@ func (bc *Blockchain) Setup(thisPrv []byte, thisAddr string, validators []*Valid
 	bc.chs = bc.network.Init()
 	bc.expectBlocks = true
 	bc.validatorStatus = INACTIVE
+
+	bc.db = new(Database)
+	err := bc.db.Init(DBNAME, DBUSER, DBPASSWORD, DBHOST, dbPort)
+	if err != nil {
+		panic(err)
+	}
 }
 
 func (bc *Blockchain) Start() {
@@ -215,14 +224,14 @@ func (bc *Blockchain) onBlockReceiveValidator(data []byte, response chan Respons
 }
 
 func (bc *Blockchain) onBlockReceiveViewer(data []byte, response chan ResponseMsg) {
-	resp := ResponseMsg{ok : true}
+	resp := ResponseMsg{ok: true}
 	var creator [PKEY_SIZE]byte
 	var b Block
 	hash, blockLen := b.Verify(data, bc.prevBlockHash, creator)
 	fmt.Println("block len", blockLen)
 
 	if blockLen != len(data) {
-		bc.getMissingBlock(bc.activeValidators[(bc.chainSize+1) % uint64(len(bc.activeValidators))].addr)
+		bc.getMissingBlock(bc.activeValidators[(bc.chainSize+1)%uint64(len(bc.activeValidators))].addr)
 		response <- resp
 		return
 	}
@@ -239,7 +248,7 @@ func (bc *Blockchain) onBlockReceiveViewer(data []byte, response chan ResponseMs
 }
 
 func (bc *Blockchain) voteAppendValidator() {
-	var data = make([]byte, INT_32_SIZE*2 + HASH_SIZE + PKEY_SIZE)
+	var data = make([]byte, INT_32_SIZE*2+HASH_SIZE+PKEY_SIZE)
 	binary.LittleEndian.PutUint64(data[:INT_32_SIZE*2], bc.chainSize)
 	copy(data[INT_32_SIZE*2:INT_32_SIZE*2+HASH_SIZE], bc.currentBock.hash[:])
 	copy(data[INT_32_SIZE*2+HASH_SIZE:], bc.thisValidator.pkey[:])
@@ -253,7 +262,7 @@ func (bc *Blockchain) onAppendVote(data []byte, response chan ResponseMsg) {
 		bc.onAppendVoteValidator(data, response)
 		return
 	}
-	if len(data) == INT_32_SIZE*2 + HASH_SIZE + PKEY_SIZE + SIG_SIZE {
+	if len(data) == INT_32_SIZE*2+HASH_SIZE+PKEY_SIZE+SIG_SIZE {
 		bc.onAppendVoteViewer(data, response)
 		return
 	}
@@ -291,7 +300,7 @@ func (bc *Blockchain) onAppendVoteViewer(data []byte, response chan ResponseMsg)
 		bc.appendVoting[sender] = 0
 		return
 	}
-	response <- ResponseMsg{ok:true}
+	response <- ResponseMsg{ok: true}
 
 }
 
@@ -429,7 +438,7 @@ func (bc *Blockchain) doTickPreparation() {
 
 		bc.currentLeader = bc.activeValidators[bc.genBlocksCount%uint64(len(bc.activeValidators))]
 	} else {
-		bc.getMissingBlock(bc.activeValidators[(bc.chainSize+1) % uint64(len(bc.activeValidators))].addr)
+		bc.getMissingBlock(bc.activeValidators[(bc.chainSize+1)%uint64(len(bc.activeValidators))].addr)
 		timeSleep := bc.nextTickTime.Sub(time.Now())
 		time.Sleep(timeSleep)
 	}
@@ -642,7 +651,7 @@ func (bc *Blockchain) sendAppendMsg(hosts []string) {
 			if ok && VerifyData(data[:PKEY_SIZE], sig[:], pkey) {
 				valid := bc.pkeyToValidator[pkey]
 				bc.activeValidators = appendValidator(bc.activeValidators,
-						bc.allValidators, valid)
+					bc.allValidators, valid)
 				bc.suspiciousValidators[valid] = 0
 			}
 		}
@@ -711,7 +720,7 @@ func (bc *Blockchain) onAppendViewer(data []byte, response chan ByteResponse) {
 
 	respData := bc.thisKey.AppendSign(bc.thisValidator.pkey[:])
 	response <- ByteResponse{
-		ok: true,
+		ok:   true,
 		data: respData,
 	}
 	bc.activeHostsExceptMe = append(bc.activeHostsExceptMe, bc.pkeyToValidator[pkey].addr)
@@ -723,10 +732,10 @@ func (bc *Blockchain) onGetBlockAfter(data []byte, response chan ByteResponse) {
 	//get block from DB
 	//ответ когда this.bc.prevHash == data
 	if bc.prevBlockHash == hash {
-		var oneByte  = [1]byte{0xFF}
+		var oneByte = [1]byte{0xFF}
 		response <- ByteResponse{
-			ok: true,
-			data : oneByte[:],
+			ok:   true,
+			data: oneByte[:],
 		}
 		return
 	}

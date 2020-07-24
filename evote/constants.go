@@ -55,5 +55,4 @@ const (
 	DBUSER     = "blockchain"
 	DBPASSWORD = "ffff"
 	DBHOST     = "localhost"
-	DBPORT     = 5432
 )

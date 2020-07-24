@@ -8,7 +8,7 @@ import (
 func TestDatabase(t *testing.T) {
 	//fmt.Printf("blocks: %+v\n%+v%+v\n", BLOCK0, BLOCK1, BLOCK2)
 	var db Database
-	err := db.Init(DBNAME, DBUSER, DBPASSWORD, DBHOST, DBPORT)
+	err := db.Init(DBNAME, DBUSER, DBPASSWORD, DBHOST, 5432)
 	assert.Nil(t, err)
 	t.Run("insert_block0", func(t *testing.T) {
 		err := db.SaveNextBlock(&B_AND_H0)
