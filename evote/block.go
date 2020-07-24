@@ -134,7 +134,7 @@ func (b *Block) CreateBlock(t []TransAndHash, prevHash [HASH_SIZE]byte,
 }
 
 func (b *Block) Verify(data []byte, prevHash [HASH_SIZE]byte,
-	creator [PKEY_SIZE]byte) ([]byte, int) {
+	creator [PKEY_SIZE]byte, db *Database) ([]byte, int) {
 	if len(data) > MAX_BLOCK_SIZE {
 		return nil, ERR_BLOCK_VERIFY
 	}
@@ -158,7 +158,7 @@ func (b *Block) Verify(data []byte, prevHash [HASH_SIZE]byte,
 	var i uint32
 	for i = 1; i < b.transSize; i++ {
 		var t Transaction
-		hash, transLen = t.Verify(transData)
+		hash, transLen = t.Verify(transData, db)
 		if transLen < 0 {
 			return nil, ERR_BLOCK_VERIFY
 		}
