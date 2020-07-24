@@ -2,11 +2,11 @@ package evote
 
 //err codes
 const (
-	OK               = 0
-	ERR_TRANS_SIZE   = -1
-	ERR_TRANS_VERIFY = -2
-	ERR_BLOCK_SIZE   = -3
-	ERR_BLOCK_VERIFY = -4
+	OK                = 0
+	ERR_TRANS_SIZE    = -1
+	ERR_TRANS_VERIFY  = -2
+	ERR_BLOCK_SIZE    = -3
+	ERR_BLOCK_VERIFY  = -4
 	ERR_BLOCK_CREATOR = -5
 )
 
@@ -26,7 +26,7 @@ const (
 	MAX_PREV_BLOCK_HASHES = 10
 )
 
-var PIDOR_KEY = [PKEY_SIZE]byte {
+var PIDOR_KEY = [PKEY_SIZE]byte{
 	2,
 	199, 89, 244, 28, 179, 70, 135, 230,
 	204, 55, 62, 69, 177, 45, 145, 99,
@@ -51,8 +51,9 @@ const (
 
 //database fields
 const (
-	NAME     = "blockchain"
-	USER     = "blockchain"
-	PASSWORD = "ffff"
-	HOST     = "localhost"
+	DBNAME     = "blockchain"
+	DBUSER     = "blockchain"
+	DBPASSWORD = "ffff"
+	DBHOST     = "localhost"
+	DBPORT     = 5432
 )

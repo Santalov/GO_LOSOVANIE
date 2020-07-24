@@ -18,11 +18,9 @@ type CryptoKeysData struct {
 }
 
 func Hash(data []byte) []byte {
-	var res []byte
 	var h = gost34112012256.New()
 	h.Write(data)
-	h.Sum(res)
-	return res
+	return h.Sum(nil)
 }
 
 func (keys *CryptoKeysData) SetupKeys(prv []byte) {
