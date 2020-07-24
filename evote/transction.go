@@ -29,11 +29,18 @@ type Transaction struct {
 	inputs     []TransactionInput
 	outputSize uint32
 	outputs    []TransactionOutput
-	typeValue  [HASH_SIZE]byte
-	typeVote   uint32
-	duration   uint32
-	hashLink   [HASH_SIZE]byte
+	typeValue  [HASH_SIZE]byte // необязательное поле
+	typeVote   uint32          // необязательное поле, в первой транзе в блоке (которая создает деньги) здесь номер блока
+	duration   uint32          // необязательное поле
+	hashLink   [HASH_SIZE]byte // необязательное поле
 	signature  [SIG_SIZE]byte
+}
+
+type UTXO struct {
+	txId   [HASH_SIZE]byte // хеш транзы, из которой взят выход
+	index  uint32          // номер выхода в массиве выходов
+	value  uint32
+	pkeyTo [PKEY_SIZE]byte
 }
 
 func (t *TransactionInput) ToBytes() []byte {

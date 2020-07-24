@@ -2,7 +2,7 @@ create table block (
     blockHash bytea primary key,
     prevBlockHash bytea null references block(blockHash) on delete no action on update no action,
     merkleTree bytea not null,
-    timestamp double precision not null
+    timestamp bigint not null
 );
 
 create table transaction (
