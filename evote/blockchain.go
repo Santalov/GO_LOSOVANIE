@@ -514,7 +514,7 @@ func (bc *Blockchain) doTickVotingProcessing() {
 			if bc.currentBock != nil {
 				fmt.Println("block accepted")
 				bc.updatePrevHashBlock()
-				//запись блока в БД
+				bc.db.SaveNextBlock(bc.currentBock)
 				bc.updateUnrecordedTrans()
 				bc.chainSize += 1
 				bc.suspiciousValidators[bc.currentLeader] = 0
@@ -679,7 +679,7 @@ func (bc *Blockchain) getMissingBlock(host string) bool {
 		copy(bc.currentBock.hash[:], hash)
 		bc.currentBock.b = &b
 		bc.updatePrevHashBlock()
-		//запись блока в БД
+		bc.db.SaveNextBlock(bc.currentBock)
 		bc.chainSize += 1
 		bc.nextTickTime = bc.getTimeOfNextTick(time.Unix(0, int64(b.timestamp)))
 		return true
@@ -727,9 +727,15 @@ func (bc *Blockchain) onAppendViewer(data []byte, response chan ByteResponse) {
 }
 
 func (bc *Blockchain) onGetBlockAfter(data []byte, response chan ByteResponse) {
+	if bc.validatorStatus != VALIDATOR {
+		response <- ByteResponse{
+			ok:    false,
+			error: "i'm not validator",
+		}
+		return
+	}
 	var hash [HASH_SIZE]byte
 	copy(hash[:], data)
-	//get block from DB
 	//ответ когда this.bc.prevHash == data
 	if bc.prevBlockHash == hash {
 		var oneByte = [1]byte{0xFF}
@@ -739,15 +745,15 @@ func (bc *Blockchain) onGetBlockAfter(data []byte, response chan ByteResponse) {
 		}
 		return
 	}
-	//получить блок из БД
-	// ответ с ошибкой, например, если блока не было
-	response <- ByteResponse{
-		ok:    false,
-		error: "no such block",
+	b, err := bc.db.GetBlockAfter(hash)
+	if b == nil {
+		response <- ByteResponse{
+			ok:    false,
+			error: "no such block",
+		}
 	}
 	// ответ с блоком
-	var b Block
-	blockBytes := b.ToBytes()
+	blockBytes := b.b.ToBytes()
 	response <- ByteResponse{
 		ok:   true,
 		data: blockBytes,
