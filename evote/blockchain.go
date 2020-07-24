@@ -222,7 +222,7 @@ func (bc *Blockchain) onBlockReceiveViewer(data []byte, response chan ResponseMs
 	fmt.Println("block len", blockLen)
 
 	if blockLen != len(data) {
-		bc.getMissingBlock(bc.activeValidators[bc.chainSize+1 % uint64(len(bc.activeValidators))].addr)
+		bc.getMissingBlock(bc.activeValidators[(bc.chainSize+1) % uint64(len(bc.activeValidators))].addr)
 		response <- resp
 		return
 	}
@@ -244,6 +244,7 @@ func (bc *Blockchain) voteAppendValidator() {
 	copy(data[INT_32_SIZE*2:INT_32_SIZE*2+HASH_SIZE], bc.currentBock.hash[:])
 	copy(data[INT_32_SIZE*2+HASH_SIZE:], bc.thisValidator.pkey[:])
 	data = bc.thisKey.AppendSign(data)
+	bc.appendVoting[bc.thisValidator] = 0
 	go bc.network.SendVoteAppendValidatorMsgToAll(bc.activeHostsExceptMe, data)
 }
 
@@ -400,9 +401,9 @@ func (bc *Blockchain) processKick() {
 			bc.activeValidators = removePkey(bc.activeValidators, k.pkey)
 		}
 	}
-	bc.kickVoting = make(map[*ValidatorNode]int, 0)
+	bc.kickVoting = make(map[*ValidatorNode]int)
 	bc.blockVoting = make(map[*ValidatorNode]int)
-	bc.appendVoting = make(map[*ValidatorNode]int, 0)
+	bc.appendVoting = make(map[*ValidatorNode]int)
 	var clearedSuspiciousValidators = make(map[*ValidatorNode]int)
 	for _, validator := range bc.activeValidators {
 		bc.kickVoting[validator] = 0
@@ -427,6 +428,10 @@ func (bc *Blockchain) doTickPreparation() {
 		bc.processKick()
 
 		bc.currentLeader = bc.activeValidators[bc.genBlocksCount%uint64(len(bc.activeValidators))]
+	} else {
+		bc.getMissingBlock(bc.activeValidators[(bc.chainSize+1) % uint64(len(bc.activeValidators))].addr)
+		timeSleep := bc.nextTickTime.Sub(time.Now())
+		time.Sleep(timeSleep)
 	}
 	bc.nextTickTime = bc.getTimeOfNextTick(time.Now())
 	bc.tickThisLeader <- true
@@ -504,9 +509,6 @@ func (bc *Blockchain) doTickVotingProcessing() {
 				bc.updateUnrecordedTrans()
 				bc.chainSize += 1
 				bc.suspiciousValidators[bc.currentLeader] = 0
-			} else {
-				//это полная хрень, валидаторы не успеют записи сделать
-				bc.getMissingBlock(bc.currentLeader.addr)
 			}
 		} else if bc.currentLeader != bc.thisValidator {
 			fmt.Println("block rejected")
@@ -567,6 +569,7 @@ func (bc *Blockchain) doAppendValidator() {
 			}
 			if bc.validatorStatus == VALIDATOR {
 				bc.suspiciousValidators[valid] = 0
+				bc.genBlocksCount = bc.chainSize
 			}
 			bc.blockVoting[valid] = 1
 			bc.kickVoting[valid] = 0
