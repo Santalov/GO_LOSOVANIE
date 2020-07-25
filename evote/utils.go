@@ -10,21 +10,34 @@ func hostsExceptGiven(validators []*ValidatorNode, pkey [PKEY_SIZE]byte) []strin
 	return hosts
 }
 
-func appendValidator(to, from []*ValidatorNode, node *ValidatorNode) []*ValidatorNode {
-	var validators []*ValidatorNode
-	if len(to) == 0 {
-		validators = append(validators, node)
-		return validators
+func remakeActiveHostsExceptMe(activeHostsExceptMe []string, activeValidators []*ValidatorNode, thisValidator *ValidatorNode) []string {
+	activeHostsMap := make(map[string]bool)
+	for _, host := range activeHostsExceptMe {
+		activeHostsMap[host] = true
 	}
-	j := 0
-	for i := 0; i < len(from); i++ {
-		if from[i] == node {
-			validators = append(to[:j], node)
-			validators = append(validators, to[j:]...)
-			break
+	for _, validator := range activeValidators {
+		activeHostsMap[validator.addr] = true
+	}
+	activeHostsMap[thisValidator.addr] = false
+	activeHostsExceptMe = make([]string, 0)
+	for addr, flag := range activeHostsMap {
+		if flag {
+			activeHostsExceptMe = append(activeHostsExceptMe, addr)
 		}
-		if to[j] == from[i] {
-			j++
+	}
+	return activeHostsExceptMe
+}
+
+func appendValidator(to, from []*ValidatorNode, node *ValidatorNode) []*ValidatorNode {
+	toMap := make(map[*ValidatorNode]bool)
+	for _, validator := range to {
+		toMap[validator] = true
+	}
+	toMap[node] = true
+	validators := make([]*ValidatorNode, 0)
+	for _, validator := range from {
+		if toMap[validator] {
+			validators = append(validators, validator)
 		}
 	}
 	return validators

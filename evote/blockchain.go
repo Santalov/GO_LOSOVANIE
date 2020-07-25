@@ -53,6 +53,7 @@ type Blockchain struct {
 	blockVoting          map[*ValidatorNode]int
 	kickVoting           map[*ValidatorNode]int
 	appendVoting         map[*ValidatorNode]int
+	appendVotingMe		 map[*ValidatorNode]int
 	suspiciousValidators map[*ValidatorNode]int
 	tickPreparation      chan bool // каналы, которые задают цикл работы ноды
 	tickThisLeader       chan bool
@@ -83,6 +84,7 @@ func (bc *Blockchain) Setup(thisPrv []byte, thisAddr string, validators []*Valid
 	bc.kickVoting = make(map[*ValidatorNode]int)
 	bc.suspiciousValidators = make(map[*ValidatorNode]int)
 	bc.appendVoting = make(map[*ValidatorNode]int)
+	bc.appendVotingMe = make(map[*ValidatorNode]int)
 	bc.addrToValidator = make(map[string]*ValidatorNode)
 	bc.pkeyToValidator = make(map[[PKEY_SIZE]byte]*ValidatorNode)
 	bc.activeHostsExceptMe = make([]string, 0)
@@ -302,12 +304,14 @@ func (bc *Blockchain) onAppendVoteViewer(data []byte, response chan ResponseMsg)
 	}
 	if bc.currentBock != nil && bc.currentBock.hash == hash && bc.chainSize == size {
 		bc.appendVoting[sender] = 1
+		bc.appendVotingMe[sender] = 1
 	} else {
 		response <- ResponseMsg{
 			ok:    false,
 			error: "incorrect append validator data",
 		}
 		bc.appendVoting[sender] = 0
+		bc.appendVotingMe[sender] = 0
 		return
 	}
 	response <- ResponseMsg{ok: true}
@@ -431,6 +435,7 @@ func (bc *Blockchain) processKick() {
 	bc.blockVoting = make(map[*ValidatorNode]int)
 	// с appendVoting аналогично, так как можно затереть отметку, котору ставит onAppendVoteViewer
 	bc.appendVoting = make(map[*ValidatorNode]int)
+	bc.appendVotingMe = make(map[*ValidatorNode]int)
 	var clearedSuspiciousValidators = make(map[*ValidatorNode]int)
 	for _, validator := range bc.activeValidators {
 		bc.kickVoting[validator] = 0
@@ -592,10 +597,13 @@ func (bc *Blockchain) tryKickValidator() {
 func (bc *Blockchain) doAppendValidator() {
 	fmt.Println("do append new validator")
 	for valid, val := range bc.appendVoting {
+		fmt.Println(val)
 		if float32(val)/float32(len(bc.activeValidators)) > 0.5 {
 			fmt.Println(valid.addr + " is new validator")
 			bc.activeValidators = appendValidator(bc.activeValidators,
 				bc.allValidators, valid)
+			bc.activeHostsExceptMe = remakeActiveHostsExceptMe(bc.activeHostsExceptMe,
+				bc.activeValidators, bc.thisValidator)
 			if bc.thisValidator.pkey == valid.pkey {
 				bc.validatorStatus = VALIDATOR
 			}
@@ -610,7 +618,7 @@ func (bc *Blockchain) doAppendValidator() {
 }
 
 func (bc *Blockchain) doAppendVoting() {
-	for valid, val := range bc.appendVoting {
+	for valid, val := range bc.appendVotingMe {
 		if val == 1 {
 			data := make([]byte, PKEY_SIZE*2)
 			copy(data[:PKEY_SIZE], valid.pkey[:])
