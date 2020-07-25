@@ -430,12 +430,6 @@ func (bc *Blockchain) processKick() {
 		}
 	}
 	bc.kickVoting = make(map[*ValidatorNode]int)
-	// очистку blockVoting надо делать в момент, когда expectBlocks устанавливается в true
-	// так как иначе, если лидер сгенерирует блок чуть раньше, можно затереть свой голос
-	bc.blockVoting = make(map[*ValidatorNode]int)
-	// с appendVoting аналогично, так как можно затереть отметку, котору ставит onAppendVoteViewer
-	bc.appendVoting = make(map[*ValidatorNode]int)
-	bc.appendVotingMe = make(map[*ValidatorNode]int)
 	var clearedSuspiciousValidators = make(map[*ValidatorNode]int)
 	for _, validator := range bc.activeValidators {
 		bc.kickVoting[validator] = 0
@@ -556,7 +550,14 @@ func (bc *Blockchain) doTickVotingProcessing() {
 
 	bc.currentBock = nil   // очищаем инфу о старом блоке, чтобы быть готовым принимать новые
 	bc.expectBlocks = true // меняем флаг заранее, чтобы не пропустить блок
+	// очистку blockVoting надо делать в момент, когда expectBlocks устанавливается в true
+	// так как иначе, если лидер сгенерирует блок чуть раньше, можно затереть свой голос
+	bc.blockVoting = make(map[*ValidatorNode]int)
+	// с appendVoting аналогично, так как можно затереть отметку, котору ставит onAppendVoteViewer
+	bc.appendVoting = make(map[*ValidatorNode]int)
+	bc.appendVotingMe = make(map[*ValidatorNode]int)
 	// вместе с обнулением блока необходимо обнулять и все хранилища голосов, привязанные к блоку (blockVoting, appendVoting)
+	bc.currentLeader = bc.activeValidators[bc.genBlocksCount%uint64(len(bc.activeValidators))]
 	timeBeforeNextTick := bc.nextTickTime.Sub(time.Now())
 	fmt.Println("time before next tick", timeBeforeNextTick)
 	go func() {
@@ -596,9 +597,10 @@ func (bc *Blockchain) tryKickValidator() {
 
 func (bc *Blockchain) doAppendValidator() {
 	fmt.Println("do append new validator")
+	var activeLen = float32(len(bc.activeValidators))
 	for valid, val := range bc.appendVoting {
 		fmt.Println(val)
-		if float32(val)/float32(len(bc.activeValidators)) > 0.5 {
+		if float32(val)/activeLen > 0.5 {
 			fmt.Println(valid.addr + " is new validator")
 			bc.activeValidators = appendValidator(bc.activeValidators,
 				bc.allValidators, valid)
@@ -793,6 +795,7 @@ func (bc *Blockchain) onGetBlockAfter(data []byte, response chan ByteResponse) {
 			ok:    false,
 			error: "no such block",
 		}
+		return
 	}
 	// ответ с блоком
 	blockBytes := b.b.ToBytes()
