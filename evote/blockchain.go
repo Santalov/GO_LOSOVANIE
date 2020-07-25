@@ -28,8 +28,8 @@ const (
 )
 
 type ValidatorNode struct {
-	pkey [PKEY_SIZE]byte
-	addr string // адрес вида 1.1.1.1:1337
+	Pkey [PKEY_SIZE]byte
+	Addr string // адрес вида 1.1.1.1:1337
 }
 
 type Blockchain struct {
@@ -91,11 +91,11 @@ func (bc *Blockchain) Setup(thisPrv []byte, thisAddr string, validators []*Valid
 
 	bc.allValidators = validators
 	for _, v := range bc.allValidators {
-		if bc.thisKey.PubkeyByte == v.pkey {
+		if bc.thisKey.PubkeyByte == v.Pkey {
 			bc.thisValidator = v
 		}
-		bc.pkeyToValidator[v.pkey] = v
-		bc.addrToValidator[v.addr] = v
+		bc.pkeyToValidator[v.Pkey] = v
+		bc.addrToValidator[v.Addr] = v
 	}
 
 	bc.blockAppendTime = blockAppendTime
@@ -126,7 +126,7 @@ func (bc *Blockchain) Setup(thisPrv []byte, thisAddr string, validators []*Valid
 }
 
 func (bc *Blockchain) Start() {
-	go bc.network.Serve(bc.thisValidator.addr) // запускаем сеть в отдельной горутине, не блокируем текущий поток
+	go bc.network.Serve(bc.thisValidator.Addr) // запускаем сеть в отдельной горутине, не блокируем текущий поток
 	bc.prepare()
 	bc.tickPreparation <- true
 	for {
@@ -198,7 +198,7 @@ func (bc *Blockchain) appendUnrecordedTrans(t *Transaction, hash []byte) {
 
 func (bc *Blockchain) onTransReceive(data []byte, response chan ResponseMsg) bool {
 	if bc.validatorStatus != VALIDATOR {
-		response <- ResponseMsg {
+		response <- ResponseMsg{
 			ok:    false,
 			error: "i'm not validator",
 		}
@@ -207,15 +207,15 @@ func (bc *Blockchain) onTransReceive(data []byte, response chan ResponseMsg) boo
 	var t Transaction
 	hash, transLen := t.Verify(data, bc.db)
 	if transLen != len(data) {
-		response <- ResponseMsg {
+		response <- ResponseMsg{
 			ok:    false,
 			error: "bad transaction from client",
 		}
 		return false
 	}
 	bc.appendUnrecordedTrans(&t, hash)
-	response <- ResponseMsg {
-		ok:    true,
+	response <- ResponseMsg{
+		ok: true,
 	}
 	return true
 
@@ -238,7 +238,7 @@ func (bc *Blockchain) onBlockReceiveValidator(data []byte, response chan Respons
 		return
 	}
 	var b Block
-	hash, blockLen := b.Verify(data, bc.prevBlockHash, bc.currentLeader.pkey, bc.db)
+	hash, blockLen := b.Verify(data, bc.prevBlockHash, bc.currentLeader.Pkey, bc.db)
 	fmt.Println("block len", blockLen)
 	if blockLen == ERR_BLOCK_CREATOR {
 		response <- ResponseMsg{ok: true}
@@ -272,9 +272,9 @@ func (bc *Blockchain) onBlockReceiveViewer(data []byte, response chan ResponseMs
 	fmt.Println("block len", blockLen)
 
 	if blockLen != len(data) {
-		addr := bc.activeValidators[(bc.chainSize+1)%uint64(len(bc.activeValidators))].addr
+		addr := bc.activeValidators[(bc.chainSize+1)%uint64(len(bc.activeValidators))].Addr
 		// опасно начинать общаться с другими участниками сети до отсылки ответа текущему
-		// т.е опасно делать response <- resp после bc.getMissingBlock(addr)
+		// т.е опасно делать response <- resp после bc.getMissingBlock(Addr)
 		bc.getMissingBlock(addr)
 		response <- resp
 		return
@@ -298,7 +298,7 @@ func (bc *Blockchain) voteAppendValidator() {
 	var data = make([]byte, INT_32_SIZE*2+HASH_SIZE+PKEY_SIZE)
 	binary.LittleEndian.PutUint64(data[:INT_32_SIZE*2], bc.chainSize)
 	copy(data[INT_32_SIZE*2:INT_32_SIZE*2+HASH_SIZE], bc.currentBock.Hash[:])
-	copy(data[INT_32_SIZE*2+HASH_SIZE:], bc.thisValidator.pkey[:])
+	copy(data[INT_32_SIZE*2+HASH_SIZE:], bc.thisValidator.Pkey[:])
 	data = bc.thisKey.AppendSign(data)
 	bc.appendVoting[bc.thisValidator] = 0
 	go bc.network.SendVoteAppendValidatorMsgToAll(bc.activeHostsExceptMe, data)
@@ -462,8 +462,8 @@ func (bc *Blockchain) updateUnrecordedTrans() {
 func (bc *Blockchain) processKick() {
 	for k, v := range bc.kickVoting {
 		if float32(v)/float32(len(bc.activeValidators)) > 0.5 {
-			bc.activeValidators = removePkey(bc.activeValidators, k.pkey)
-			bc.activeHostsExceptMe = removeAddr(bc.activeHostsExceptMe, k.addr)
+			bc.activeValidators = removePkey(bc.activeValidators, k.Pkey)
+			bc.activeHostsExceptMe = removeAddr(bc.activeHostsExceptMe, k.Addr)
 		}
 	}
 	bc.kickVoting = make(map[*ValidatorNode]int)
@@ -521,7 +521,7 @@ func (bc *Blockchain) doTickVoting() {
 		fmt.Println("block voting time")
 		voteData := make([]byte, HASH_SIZE+PKEY_SIZE+1)
 		copy(voteData[:HASH_SIZE], bc.prevBlockHash[:])
-		copy(voteData[HASH_SIZE:HASH_SIZE+PKEY_SIZE], bc.thisValidator.pkey[:])
+		copy(voteData[HASH_SIZE:HASH_SIZE+PKEY_SIZE], bc.thisValidator.Pkey[:])
 		var vote [1]byte
 		if bc.currentBock != nil {
 			vote[0] = 0x01
@@ -582,7 +582,7 @@ func (bc *Blockchain) doTickVotingProcessing() {
 		// иначе возможно получить только максимум предыдущий блок
 		// то есть разрыв в один принятый блок получается неустранимым
 		// мб его нужно перенести в doTickPreparation
-		bc.getMissingBlock(bc.activeValidators[(bc.chainSize+1)%uint64(len(bc.activeValidators))].addr)
+		bc.getMissingBlock(bc.activeValidators[(bc.chainSize+1)%uint64(len(bc.activeValidators))].Addr)
 	}
 
 	bc.currentBock = nil   // очищаем инфу о старом блоке, чтобы быть готовым принимать новые
@@ -624,8 +624,8 @@ func (bc *Blockchain) tryKickValidator() {
 		if v > 1 {
 			bc.kickVoting[valid] += 1
 			data := make([]byte, PKEY_SIZE*2)
-			copy(data[:PKEY_SIZE], valid.pkey[:])
-			copy(data[PKEY_SIZE:PKEY_SIZE*2], bc.thisValidator.pkey[:])
+			copy(data[:PKEY_SIZE], valid.Pkey[:])
+			copy(data[PKEY_SIZE:PKEY_SIZE*2], bc.thisValidator.Pkey[:])
 			data = bc.thisKey.AppendSign(data)
 			go bc.network.SendKickMsgToAll(bc.activeHostsExceptMe, data)
 		}
@@ -638,12 +638,12 @@ func (bc *Blockchain) doAppendValidator() {
 	for valid, val := range bc.appendVoting {
 		fmt.Println(val)
 		if float32(val)/activeLen > 0.5 {
-			fmt.Println(valid.addr + " is new validator")
+			fmt.Println(valid.Addr + " is new validator")
 			bc.activeValidators = appendValidator(bc.activeValidators,
 				bc.allValidators, valid)
 			bc.activeHostsExceptMe = remakeActiveHostsExceptMe(bc.activeHostsExceptMe,
 				bc.activeValidators, bc.thisValidator)
-			if bc.thisValidator.pkey == valid.pkey {
+			if bc.thisValidator.Pkey == valid.Pkey {
 				bc.validatorStatus = VALIDATOR
 			}
 			if bc.validatorStatus == VALIDATOR {
@@ -660,8 +660,8 @@ func (bc *Blockchain) doAppendVoting() {
 	for valid, val := range bc.appendVotingMe {
 		if val == 1 {
 			data := make([]byte, PKEY_SIZE*2)
-			copy(data[:PKEY_SIZE], valid.pkey[:])
-			copy(data[PKEY_SIZE:PKEY_SIZE*2], bc.thisValidator.pkey[:])
+			copy(data[:PKEY_SIZE], valid.Pkey[:])
+			copy(data[PKEY_SIZE:PKEY_SIZE*2], bc.thisValidator.Pkey[:])
 			data = bc.thisKey.AppendSign(data)
 			go bc.network.SendVoteAppendValidatorMsgToAll(bc.activeHostsExceptMe, data)
 		}
@@ -673,7 +673,7 @@ func (bc *Blockchain) doAppendVoting() {
 //методы отправителей
 
 func (bc *Blockchain) prepare() {
-	hosts := hostsExceptGiven(bc.allValidators, bc.thisValidator.pkey)
+	hosts := hostsExceptGiven(bc.allValidators, bc.thisValidator.Pkey)
 	hosts = bc.network.PingHosts(hosts)
 	if len(hosts) == 0 {
 		bc.activeValidators = append(bc.activeValidators, bc.thisValidator)
@@ -710,7 +710,7 @@ func (bc *Blockchain) prepare() {
 }
 
 func (bc *Blockchain) sendAppendMsg(hosts []string) {
-	data := bc.thisKey.AppendSign(bc.thisValidator.pkey[:])
+	data := bc.thisKey.AppendSign(bc.thisValidator.Pkey[:])
 	bc.activeValidators = make([]*ValidatorNode, 0)
 	for _, h := range hosts {
 		resp, err := bc.network.SendAppendViewerMsg(h, data)
@@ -724,7 +724,7 @@ func (bc *Blockchain) sendAppendMsg(hosts []string) {
 				valid := bc.pkeyToValidator[pkey]
 				bc.activeValidators = appendValidator(bc.activeValidators,
 					bc.allValidators, valid)
-				bc.activeHostsExceptMe = append(bc.activeHostsExceptMe, valid.addr)
+				bc.activeHostsExceptMe = append(bc.activeHostsExceptMe, valid.Addr)
 				bc.suspiciousValidators[valid] = 0
 			}
 		}
@@ -779,7 +779,7 @@ func (bc *Blockchain) onAppendViewer(data []byte, response chan ByteResponse) {
 	if len(data) != PKEY_SIZE+SIG_SIZE {
 		response <- ByteResponse{
 			ok:    false,
-			error: "err pkey",
+			error: "err Pkey",
 		}
 		return
 	}
@@ -791,17 +791,17 @@ func (bc *Blockchain) onAppendViewer(data []byte, response chan ByteResponse) {
 	if !ok || !VerifyData(data[:PKEY_SIZE], sig[:], pkey) {
 		response <- ByteResponse{
 			ok:    false,
-			error: "err pkey",
+			error: "err Pkey",
 		}
 		return
 	}
 
-	respData := bc.thisKey.AppendSign(bc.thisValidator.pkey[:])
+	respData := bc.thisKey.AppendSign(bc.thisValidator.Pkey[:])
 	response <- ByteResponse{
 		ok:   true,
 		data: respData,
 	}
-	bc.activeHostsExceptMe = append(bc.activeHostsExceptMe, bc.pkeyToValidator[pkey].addr)
+	bc.activeHostsExceptMe = append(bc.activeHostsExceptMe, bc.pkeyToValidator[pkey].Addr)
 }
 
 func (bc *Blockchain) onGetBlockAfter(data []byte, response chan ByteResponse) {

@@ -1,4 +1,4 @@
-package client
+package main
 
 import (
 	"GO_LOSOVANIE/evote"
@@ -93,7 +93,7 @@ func (n *Network) createWorkingHosts() {
 	}
 }
 
-func (n *Network) Init(allHosts []string, key [evote.PKEY_SIZE]byte) {
+func (n *Network) Init(allHosts []string) {
 	n.allHosts = allHosts
 	n.createWorkingHosts()
 }
@@ -158,4 +158,20 @@ func (n *Network) GetUtxosByPkey(pkey [evote.PKEY_SIZE]byte) ([]*evote.UTXO, err
 		offset += evote.UTXO_SIZE
 	}
 	return utxos, nil
+}
+
+func (n *Network) SubmitTx(tx []byte) error {
+	resp, err := http.Post("http://"+n.curHost+"/submitClientTx", "application/octet-stream", bytes.NewReader(tx))
+	if err != nil {
+		fmt.Println("request err: ", err)
+		return err
+	} else {
+		if resp.StatusCode != http.StatusOK {
+			body, _ := ioutil.ReadAll(resp.Body)
+			fmt.Printf("validator answered with error %v, body: %v\n", resp.Status, string(body))
+			return fmt.Errorf(string(body))
+		} else {
+			return nil
+		}
+	}
 }

@@ -9,8 +9,8 @@ import (
 
 type globalConfigRaw struct {
 	Validators []struct {
-		Pkey string `json:"pkey"`
-		Addr string `json:"addr"`
+		Pkey string `json:"Pkey"`
+		Addr string `json:"Addr"`
 	} `json:"validators"`
 	BlockAppendTime time.Duration `json:"block_append_time"`
 	BlockVotingTime time.Duration `json:"block_voting_time"`
@@ -18,9 +18,9 @@ type globalConfigRaw struct {
 }
 
 type localConfigRaw struct {
-	Pkey string `json:"pkey"`
+	Pkey string `json:"Pkey"`
 	Prv  string `json:"prv"`
-	Addr string `json:"addr"`
+	Addr string `json:"Addr"`
 }
 
 type GlobalConfig struct {
@@ -90,8 +90,8 @@ func LoadGlobalConfig(pathToGlobalConfig string) (*GlobalConfig, error) {
 			return nil, err
 		}
 		validator := &ValidatorNode{}
-		copy(validator.pkey[:], pkey)
-		validator.addr = validatorRaw.Addr
+		copy(validator.Pkey[:], pkey)
+		validator.Addr = validatorRaw.Addr
 		gConf.Validators = append(gConf.Validators, validator)
 		gConf.BlockAppendTime = gConfRaw.BlockAppendTime
 		gConf.BlockVotingTime = gConfRaw.BlockVotingTime

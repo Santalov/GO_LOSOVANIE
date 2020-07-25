@@ -175,7 +175,7 @@ func (t *Transaction) FromBytes(data []byte) int {
 	return size
 }
 
-func (t *Transaction) CreateTrans(inputs []UTXO, outputs map[[PKEY_SIZE]byte]uint32,
+func (t *Transaction) CreateTrans(inputs []*UTXO, outputs map[[PKEY_SIZE]byte]uint32,
 	typeValue [HASH_SIZE]byte, keys *CryptoKeysData) int {
 	if len(inputs) == 0 || len(outputs) == 0 {
 		return ERR_CREATE_TRANS

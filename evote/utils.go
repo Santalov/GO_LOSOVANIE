@@ -3,8 +3,8 @@ package evote
 func hostsExceptGiven(validators []*ValidatorNode, pkey [PKEY_SIZE]byte) []string {
 	hosts := make([]string, 0)
 	for _, validator := range validators {
-		if validator.pkey != pkey {
-			hosts = append(hosts, validator.addr)
+		if validator.Pkey != pkey {
+			hosts = append(hosts, validator.Addr)
 		}
 	}
 	return hosts
@@ -16,9 +16,9 @@ func remakeActiveHostsExceptMe(activeHostsExceptMe []string, activeValidators []
 		activeHostsMap[host] = true
 	}
 	for _, validator := range activeValidators {
-		activeHostsMap[validator.addr] = true
+		activeHostsMap[validator.Addr] = true
 	}
-	activeHostsMap[thisValidator.addr] = false
+	activeHostsMap[thisValidator.Addr] = false
 	activeHostsExceptMe = make([]string, 0)
 	for addr, flag := range activeHostsMap {
 		if flag {
@@ -56,7 +56,7 @@ func removeAddr(addrs []string, rmAddr string) []string {
 func removePkey(validators []*ValidatorNode, pkey [PKEY_SIZE]byte) []*ValidatorNode {
 	newValids := make([]*ValidatorNode, 0)
 	for _, v := range validators {
-		if v.pkey != pkey {
+		if v.Pkey != pkey {
 			newValids = append(newValids, v)
 		}
 	}
