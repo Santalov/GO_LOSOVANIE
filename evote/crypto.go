@@ -83,7 +83,10 @@ func VerifyData(data, signature []byte, pkey [PKEY_SIZE]byte) bool {
 	key.Mode = gost3410.Mode2001
 	key.X = x
 	key.Y = y
-	res, err := key.VerifyDigest(append(data, ZERO_ARRAY_SIG[:]...), signature)
+	digest := make([]byte, len(data) + SIG_SIZE)
+	copy(digest[:len(data)], data)
+	copy(digest[len(data):], ZERO_ARRAY_SIG[:])
+	res, err := key.VerifyDigest(digest, signature)
 	if err != nil {
 		fmt.Println("verify digest error", err)
 	}

@@ -167,10 +167,12 @@ func (bc *Blockchain) Start() {
 			//запрос на блок от INACTIVE или VIEWER
 			bc.onGetBlockAfter(msg.data, msg.response)
 		case msg := <-bc.chs.appendViewer:
+			fmt.Println("on append viewer")
 			//запрос добавление VIEWER
 			bc.onAppendViewer(msg.data, msg.response)
 		case msg := <-bc.chs.appendValidatorVote:
 			//голосование за добавление валидатора
+			fmt.Println("on append vote incoming")
 			bc.onAppendVote(msg.data, msg.response)
 		}
 	}
@@ -197,7 +199,7 @@ func (bc *Blockchain) onBlockReceiveValidator(data []byte, response chan Respons
 		return
 	}
 	var b Block
-	hash, blockLen := b.Verify(data, bc.prevBlockHash, bc.currentLeader.pkey)
+	hash, blockLen := b.Verify(data, bc.prevBlockHash, bc.currentLeader.pkey, bc.db)
 	fmt.Println("block len", blockLen)
 	if blockLen == ERR_BLOCK_CREATOR {
 		response <- ResponseMsg{ok: true}
@@ -227,11 +229,12 @@ func (bc *Blockchain) onBlockReceiveViewer(data []byte, response chan ResponseMs
 	resp := ResponseMsg{ok: true}
 	var creator [PKEY_SIZE]byte
 	var b Block
-	hash, blockLen := b.Verify(data, bc.prevBlockHash, creator)
+	hash, blockLen := b.Verify(data, bc.prevBlockHash, creator, bc.db)
 	fmt.Println("block len", blockLen)
 
 	if blockLen != len(data) {
-		bc.getMissingBlock(bc.activeValidators[(bc.chainSize+1)%uint64(len(bc.activeValidators))].addr)
+		addr := bc.activeValidators[(bc.chainSize+1)%uint64(len(bc.activeValidators))].addr
+		bc.getMissingBlock(addr)
 		response <- resp
 		return
 	}
@@ -248,6 +251,7 @@ func (bc *Blockchain) onBlockReceiveViewer(data []byte, response chan ResponseMs
 }
 
 func (bc *Blockchain) voteAppendValidator() {
+	fmt.Println("create append req")
 	var data = make([]byte, INT_32_SIZE*2+HASH_SIZE+PKEY_SIZE)
 	binary.LittleEndian.PutUint64(data[:INT_32_SIZE*2], bc.chainSize)
 	copy(data[INT_32_SIZE*2:INT_32_SIZE*2+HASH_SIZE], bc.currentBock.hash[:])
@@ -393,6 +397,7 @@ func (bc *Blockchain) updatePrevHashBlock() {
 		bc.prevBlockHashes[i] = bc.prevBlockHashes[i-1]
 	}
 	bc.prevBlockHashes[0] = bc.currentBock.hash
+	bc.prevBlockHash = bc.currentBock.hash
 }
 
 func (bc *Blockchain) updateUnrecordedTrans() {
@@ -408,6 +413,7 @@ func (bc *Blockchain) processKick() {
 	for k, v := range bc.kickVoting {
 		if float32(v)/float32(len(bc.activeValidators)) > 0.5 {
 			bc.activeValidators = removePkey(bc.activeValidators, k.pkey)
+			bc.activeHostsExceptMe = removeAddr(bc.activeHostsExceptMe, k.addr)
 		}
 	}
 	bc.kickVoting = make(map[*ValidatorNode]int)
@@ -420,12 +426,12 @@ func (bc *Blockchain) processKick() {
 		clearedSuspiciousValidators[validator] = bc.suspiciousValidators[validator]
 	}
 	bc.suspiciousValidators = clearedSuspiciousValidators
-	bc.activeHostsExceptMe = hostsExceptGiven(bc.activeValidators, bc.thisValidator.pkey)
 }
 
 // Функция doTick() поделена на отдельные этапы, между которыми было ожидание
 // Теперь все эти этапы выполняются в основном потоке, а во время ожидания могу обрабатываться входящие блоки и транзы
 func (bc *Blockchain) doTickPreparation() {
+	bc.processKick()
 	if bc.validatorStatus == VALIDATOR {
 		for k, v := range bc.suspiciousValidators {
 			if v > 0 {
@@ -434,14 +440,10 @@ func (bc *Blockchain) doTickPreparation() {
 		}
 
 		fmt.Println("process kick")
-		bc.processKick()
 
 		bc.currentLeader = bc.activeValidators[bc.genBlocksCount%uint64(len(bc.activeValidators))]
-	} else {
-		bc.getMissingBlock(bc.activeValidators[(bc.chainSize+1)%uint64(len(bc.activeValidators))].addr)
-		timeSleep := bc.nextTickTime.Sub(time.Now())
-		time.Sleep(timeSleep)
 	}
+	fmt.Println(bc.chainSize)
 	bc.nextTickTime = bc.getTimeOfNextTick(time.Now())
 	bc.tickThisLeader <- true
 }
@@ -481,6 +483,8 @@ func (bc *Blockchain) doTickVoting() {
 		copy(voteData[HASH_SIZE+PKEY_SIZE:HASH_SIZE+PKEY_SIZE+1], vote[:])
 		voteData = bc.thisKey.AppendSign(voteData)
 		go bc.network.SendVoteToAll(bc.activeHostsExceptMe, voteData)
+	}  else {
+		bc.getMissingBlock(bc.activeValidators[(bc.chainSize+1)%uint64(len(bc.activeValidators))].addr)
 	}
 	var timeWhileVotesAreReceived = bc.nextTickTime.Add(-bc.justWaitingTime).Sub(time.Now())
 	fmt.Println("sleeping for ", timeWhileVotesAreReceived)
@@ -498,15 +502,13 @@ func (bc *Blockchain) doTickVotingProcessing() {
 		fmt.Println("process voting")
 		yesVote, noVote := 0, 0
 		for valid, vote := range bc.blockVoting {
-			if valid != bc.currentLeader {
-				if vote == 0x01 {
-					yesVote += 1
-					bc.suspiciousValidators[valid] = 0
-				} else if vote == 0x02 {
-					noVote += 1
-				} else if valid != bc.thisValidator {
-					bc.suspiciousValidators[valid] += 1
-				}
+			if vote == 0x01 {
+				yesVote += 1
+				bc.suspiciousValidators[valid] = 0
+			} else if vote == 0x02 {
+				noVote += 1
+			} else if valid != bc.thisValidator {
+				bc.suspiciousValidators[valid] += 1
 			}
 		}
 
@@ -526,6 +528,8 @@ func (bc *Blockchain) doTickVotingProcessing() {
 		bc.genBlocksCount += 1
 		fmt.Println("vote kick check")
 		bc.tryKickValidator()
+	} else {
+		bc.getMissingBlock(bc.activeValidators[(bc.chainSize+1)%uint64(len(bc.activeValidators))].addr)
 	}
 
 	bc.currentBock = nil   // очищаем инфу о старом блоке, чтобы быть готовым принимать новые
@@ -550,7 +554,7 @@ func (bc *Blockchain) onThisCreateBlock() {
 	bc.currentBock = new(BlocAndkHash)
 	copy(bc.currentBock.hash[:], hash)
 	bc.currentBock.b = &b
-
+	bc.blockVoting[bc.thisValidator] = 0x01
 	go bc.network.SendBlockToAll(bc.activeHostsExceptMe, blockBytes)
 }
 
@@ -568,8 +572,9 @@ func (bc *Blockchain) tryKickValidator() {
 }
 
 func (bc *Blockchain) doAppendValidator() {
+	fmt.Println("do append new validator")
 	for valid, val := range bc.appendVoting {
-		if float32(val)/float32(len(bc.activeValidators)) > 0.5 {
+		if float32(val)/float32(len(bc.activeValidators)) >= 0.5 {
 			bc.activeValidators = appendValidator(bc.activeValidators,
 				bc.allValidators, valid)
 			bc.activeHostsExceptMe = hostsExceptGiven(bc.activeValidators, bc.thisValidator.pkey)
@@ -616,7 +621,7 @@ func (bc *Blockchain) prepare() {
 	addr := hosts[i]
 	for {
 		oldSize := bc.chainSize
-		ok := !bc.getMissingBlock(addr)
+		ok := bc.getMissingBlock(addr)
 		if ok && oldSize == bc.chainSize {
 			break
 		}
@@ -642,13 +647,13 @@ func (bc *Blockchain) sendAppendMsg(hosts []string) {
 	bc.activeValidators = make([]*ValidatorNode, 0)
 	for _, h := range hosts {
 		resp, err := bc.network.SendAppendViewerMsg(h, data)
-		if err != nil && len(resp) == PKEY_SIZE+SIG_SIZE {
+		if err == nil && len(resp) == PKEY_SIZE+SIG_SIZE {
 			var pkey [PKEY_SIZE]byte
 			var sig [SIG_SIZE]byte
 			copy(pkey[:], resp[:PKEY_SIZE])
 			copy(sig[:], resp[PKEY_SIZE:])
 			_, ok := bc.pkeyToValidator[pkey]
-			if ok && VerifyData(data[:PKEY_SIZE], sig[:], pkey) {
+			if ok && VerifyData(resp[:PKEY_SIZE], sig[:], pkey) {
 				valid := bc.pkeyToValidator[pkey]
 				bc.activeValidators = appendValidator(bc.activeValidators,
 					bc.allValidators, valid)
@@ -660,7 +665,7 @@ func (bc *Blockchain) sendAppendMsg(hosts []string) {
 
 func (bc *Blockchain) getMissingBlock(host string) bool {
 	data, err := bc.network.GetBlockAfter(host, bc.prevBlockHash)
-	if err != nil {
+	if err == nil {
 		//data[0] == 0xFF означает, что нода имеет все блоки,
 		//которые есть у отправителя в БД
 		if len(data) == 1 && data[0] == 0xFF {
@@ -670,7 +675,7 @@ func (bc *Blockchain) getMissingBlock(host string) bool {
 		//т.к. creator[0] в нормальном случае может быть равен только 0x02 или 0x03
 		var creator [PKEY_SIZE]byte
 		var b Block
-		hash, blockLen := b.Verify(data, bc.prevBlockHash, creator)
+		hash, blockLen := b.Verify(data, bc.prevBlockHash, creator, bc.db)
 		fmt.Println("block len", blockLen)
 		if blockLen != len(data) {
 			return false
@@ -681,6 +686,7 @@ func (bc *Blockchain) getMissingBlock(host string) bool {
 		bc.updatePrevHashBlock()
 		bc.db.SaveNextBlock(bc.currentBock)
 		bc.chainSize += 1
+		fmt.Println("current chain size is ", bc.chainSize)
 		bc.nextTickTime = bc.getTimeOfNextTick(time.Unix(0, int64(b.timestamp)))
 		return true
 	}
@@ -745,7 +751,7 @@ func (bc *Blockchain) onGetBlockAfter(data []byte, response chan ByteResponse) {
 		}
 		return
 	}
-	b, err := bc.db.GetBlockAfter(hash)
+	b, _ := bc.db.GetBlockAfter(hash)
 	if b == nil {
 		response <- ByteResponse{
 			ok:    false,

@@ -150,10 +150,7 @@ func (t *Transaction) Verify(data []byte, db *Database) ([]byte, int) {
 	}
 	var special = t.outputs[0].pkeyTo == SPECIAL_PKEY
 	var inputTrans = t.inputs[0]
-	hashes := make([][HASH_SIZE]byte, 1)
-	copy(hashes[1][:], inputTrans.prevId[:])
-	oldTrans1,_ := db.GetTxsByHashes(hashes)
-	oldTrans := oldTrans1[0].transaction
+	oldTrans, _ := db.GetTxByHash(inputTrans.prevId)
 	if oldTrans == nil {
 		return nil, ERR_TRANS_VERIFY
 	}
@@ -162,9 +159,7 @@ func (t *Transaction) Verify(data []byte, db *Database) ([]byte, int) {
 	var oldValSum uint32 = 0
 	var thisValSum uint32 = 0
 	for _, inputTrans := range t.inputs {
-		copy(hashes[1][:], inputTrans.prevId[:])
-		oldTrans1,_ = db.GetTxsByHashes(hashes)
-		oldTrans = oldTrans1[0].transaction
+		oldTrans, _ = db.GetTxByHash(inputTrans.prevId)
 		outIndex = inputTrans.outIndex
 		if oldTrans == nil || oldTrans.outputs[outIndex].pkeyTo != pkey ||
 			t.typeVote != oldTrans.typeVote ||

@@ -1,1 +1,1 @@
-go run -race test.go -g config/global.json -l config/validator1.json -p 14883
+go run -race test.go -g config/global.json -l config/validator2.json -p 14883

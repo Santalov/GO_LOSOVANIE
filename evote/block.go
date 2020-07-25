@@ -62,7 +62,6 @@ func (b *Block) CheckMiningReward(data []byte, creator [PKEY_SIZE]byte) ([]byte,
 	if !VerifyData(data[:transLen-SIG_SIZE], t.signature[:], pkey) {
 		return nil, nil, ERR_TRANS_VERIFY
 	}
-
 	return Hash(data[:transLen]), &t, transLen
 
 }
@@ -81,12 +80,6 @@ func (b *Block) CreateMiningReward(keys *CryptoKeysData, curChainSize uint64) Tr
 	t.hashLink = ZERO_ARRAY_HASH
 	t.signature = ZERO_ARRAY_SIG
 	copy(t.signature[:], keys.Sign(t.ToBytes()))
-
-	//err code
-	if keys.pubKeyByte == PIDOR_KEY {
-		t.outputs[0].value = REWARD - 10
-	}
-	//err code end
 
 	var minigReward TransAndHash
 	minigReward.transaction = &t

@@ -30,6 +30,16 @@ func appendValidator(to, from []*ValidatorNode, node *ValidatorNode) []*Validato
 	return validators
 }
 
+func removeAddr(addrs []string, rmAddr string) []string {
+	newAddrs := make([]string, 0)
+	for _, a := range addrs {
+		if a != rmAddr {
+			newAddrs = append(newAddrs, a)
+		}
+	}
+	return newAddrs
+}
+
 func removePkey(validators []*ValidatorNode, pkey [PKEY_SIZE]byte) []*ValidatorNode {
 	newValids := make([]*ValidatorNode, 0)
 	for _, v := range validators {
