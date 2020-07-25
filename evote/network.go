@@ -2,7 +2,6 @@ package evote
 
 import (
 	"bytes"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -39,6 +38,9 @@ type NetworkChannels struct {
 	appendValidatorVote chan NetworkMsg
 	appendViewer        chan NetworkByteMsg
 	blockAfter          chan NetworkByteMsg
+	getUtxosByPkey      chan NetworkByteMsg
+	getTxsByPkey        chan NetworkByteMsg
+	getTxsByHashes      chan NetworkByteMsg
 }
 
 // этими сообщениями Blockchain сообщает результаты проверки
@@ -81,6 +83,9 @@ func (n *Network) Init() *NetworkChannels {
 		make(chan NetworkMsg, chanSize),
 		make(chan NetworkMsg, chanSize),
 		make(chan NetworkMsg, chanSize),
+		make(chan NetworkByteMsg, chanSize),
+		make(chan NetworkByteMsg, chanSize),
+		make(chan NetworkByteMsg, chanSize),
 		make(chan NetworkByteMsg, chanSize),
 		make(chan NetworkByteMsg, chanSize),
 	}
@@ -238,50 +243,6 @@ func (n *Network) handleInfo(w http.ResponseWriter, _ *http.Request) {
 	}
 }
 
-func (n *Network) handleGetTxs(w http.ResponseWriter, req *http.Request) {
-	http.Error(w, "not implemented", http.StatusNotImplemented)
-}
-
-func (n *Network) handleGetTxsByPubKey(w http.ResponseWriter, req *http.Request) {
-	http.Error(w, "not implemented", http.StatusNotImplemented)
-}
-
-func (n *Network) handleGetUTXOByPubKey(w http.ResponseWriter, req *http.Request) {
-	http.Error(w, "not implemented", http.StatusNotImplemented)
-}
-
-func (n *Network) handleSubmitClientTx(w http.ResponseWriter, req *http.Request) {
-	rawData, err := ioutil.ReadAll(req.Body)
-	if err != nil {
-		http.Error(w, "cannot read the body: "+err.Error(), http.StatusBadRequest)
-		return
-	}
-	type clientSubmitTx struct {
-		Tx string `json:"tx"`
-	}
-	var parsedData clientSubmitTx
-	err = json.Unmarshal(rawData, &parsedData)
-	if err != nil {
-		http.Error(w, "Transaction required as tx field in json in body, example: {\"tx\":\"1bf12...\"}", http.StatusBadRequest)
-		return
-	}
-	tx, err := hex.DecodeString(parsedData.Tx)
-	if err != nil {
-		http.Error(w, "incorrect hex in tx: "+err.Error(), http.StatusBadRequest)
-	}
-	ch := make(chan ResponseMsg)
-	n.chs.txsClient <- NetworkMsg{
-		data:     tx,
-		from:     req.Host,
-		response: ch,
-	}
-	resp := <-ch
-	response(w, resp)
-}
-
-// обработчики запросов от других валидаторов
-// отличаются тем, что работают с бинарями, а так же логикой
-
 func handleBinary(msgChan chan NetworkMsg, w http.ResponseWriter, req *http.Request) {
 	data, err := ioutil.ReadAll(req.Body)
 	if err != nil {
@@ -296,6 +257,47 @@ func handleBinary(msgChan chan NetworkMsg, w http.ResponseWriter, req *http.Requ
 	resp := <-ch
 	response(w, resp)
 }
+
+func handleBinaryWithResponse(msgChan chan NetworkByteMsg, w http.ResponseWriter, req *http.Request) {
+	data, err := ioutil.ReadAll(req.Body)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusServiceUnavailable)
+	}
+	ch := make(chan ByteResponse)
+	msgChan <- NetworkByteMsg{
+		data:     data,
+		from:     req.Host,
+		response: ch,
+	}
+	resp := <-ch
+	if !resp.ok {
+		http.Error(w, resp.error, http.StatusBadRequest)
+	} else {
+		_, err := w.Write(resp.data)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		}
+	}
+}
+
+func (n *Network) handleGetTxs(w http.ResponseWriter, req *http.Request) {
+	handleBinaryWithResponse(n.chs.getTxsByHashes, w, req)
+}
+
+func (n *Network) handleGetTxsByPubKey(w http.ResponseWriter, req *http.Request) {
+	handleBinaryWithResponse(n.chs.getTxsByPkey, w, req)
+}
+
+func (n *Network) handleGetUTXOByPubKey(w http.ResponseWriter, req *http.Request) {
+	handleBinaryWithResponse(n.chs.getUtxosByPkey, w, req)
+}
+
+func (n *Network) handleSubmitClientTx(w http.ResponseWriter, req *http.Request) {
+	handleBinary(n.chs.txsClient, w, req)
+}
+
+// обработчики запросов от других валидаторов
+// отличаются тем, что работают с бинарями, а так же логикой
 
 func (n *Network) handleSubmitValidatorTx(w http.ResponseWriter, req *http.Request) {
 	handleBinary(n.chs.txsValidator, w, req)
@@ -318,45 +320,9 @@ func (n *Network) handleKickValidatorVote(w http.ResponseWriter, req *http.Reque
 }
 
 func (n *Network) handleAppendViewer(w http.ResponseWriter, req *http.Request) {
-	data, err := ioutil.ReadAll(req.Body)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusServiceUnavailable)
-	}
-	ch := make(chan ByteResponse)
-	n.chs.appendViewer <- NetworkByteMsg{
-		data:     data,
-		from:     req.Host,
-		response: ch,
-	}
-	resp := <-ch
-	if !resp.ok {
-		http.Error(w, resp.error, http.StatusBadRequest)
-	} else {
-		_, err := w.Write(resp.data)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusServiceUnavailable)
-		}
-	}
+	handleBinaryWithResponse(n.chs.appendViewer, w, req)
 }
 
 func (n *Network) handleBlockAfter(w http.ResponseWriter, req *http.Request) {
-	data, err := ioutil.ReadAll(req.Body)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusServiceUnavailable)
-	}
-	ch := make(chan ByteResponse)
-	n.chs.blockAfter <- NetworkByteMsg{
-		data:     data,
-		from:     req.Host,
-		response: ch,
-	}
-	resp := <-ch
-	if !resp.ok {
-		http.Error(w, resp.error, http.StatusBadRequest)
-	} else {
-		_, err := w.Write(resp.data)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusServiceUnavailable)
-		}
-	}
+	handleBinaryWithResponse(n.chs.blockAfter, w, req)
 }
