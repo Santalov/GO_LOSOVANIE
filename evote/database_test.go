@@ -388,10 +388,49 @@ func TestDatabase(t *testing.T) {
 		assert.Equal(t, B_AND_H3.Hash, blockHash(blocksReceived[0].B))
 	})
 	t.Run("get_utxo_by_pkey_with_typeValue_0", func(t *testing.T) {
-
+		tx := BLOCK3.Trans[1]
+		pkey := tx.Transaction.Outputs[0].PkeyTo
+		utxosExpected := []*UTXO{
+			{
+				TxId:      tx.Hash,
+				TypeValue: tx.Hash,
+				Index:     0,
+				Value:     2000,
+				PkeyTo:    pkey,
+			},
+		}
+		utxosReceived, err := db.GetUTXOSByPkey(pkey)
+		assert.Nil(t, err)
+		assert.Equal(t, utxosExpected, utxosReceived)
 	})
 	t.Run("get_utxo_by_txid_with_typeValue_0", func(t *testing.T) {
-
+		tx := BLOCK3.Trans[1]
+		utxosExpected := []*UTXO{
+			{
+				TxId:      tx.Hash,
+				TypeValue: tx.Hash,
+				Index:     0,
+				Value:     2000,
+				PkeyTo:    tx.Transaction.Outputs[0].PkeyTo,
+			},
+			{
+				TxId:      tx.Hash,
+				TypeValue: tx.Hash,
+				Index:     1,
+				Value:     3000,
+				PkeyTo:    tx.Transaction.Outputs[1].PkeyTo,
+			},
+			{
+				TxId:      tx.Hash,
+				TypeValue: tx.Hash,
+				Index:     2,
+				Value:     4000,
+				PkeyTo:    tx.Transaction.Outputs[2].PkeyTo,
+			},
+		}
+		utxosReceived, err := db.GetUTXOSByTxId(tx.Hash)
+		assert.Nil(t, err)
+		assert.ElementsMatch(t, utxosExpected, utxosReceived)
 	})
 	t.Run("insert_block_4_with_more_optional_fields", func(t *testing.T) {
 		err := db.SaveNextBlock(&B_AND_H4)
@@ -405,6 +444,66 @@ func TestDatabase(t *testing.T) {
 		}, blocksReceived)
 		assert.Equal(t, blocksReceived[0].Hash, blockHash(blocksReceived[0].B))
 		assert.Equal(t, B_AND_H4.Hash, blockHash(blocksReceived[0].B))
+	})
+	t.Run("get_utxo_by_pkey_with_typeValue_1", func(t *testing.T) {
+		tx := BLOCK4.Trans[1]
+		pkey := tx.Transaction.Outputs[0].PkeyTo
+		utxosExpected := []*UTXO{
+			{
+				TxId:      tx.Hash,
+				TypeValue: BLOCK3.Trans[1].Hash,
+				Index:     0,
+				Value:     2000,
+				PkeyTo:    pkey,
+			},
+		}
+		utxosReceived, err := db.GetUTXOSByPkey(pkey)
+		assert.Nil(t, err)
+		assert.Equal(t, utxosExpected, utxosReceived)
+	})
+	t.Run("get_undefined_utxo_with_typeValue", func(t *testing.T) {
+		tx := BLOCK3.Trans[1]
+		pkey := tx.Transaction.Outputs[0].PkeyTo
+		utxosReceived, err := db.GetUTXOSByPkey(pkey)
+		assert.Nil(t, err)
+		assert.Empty(t, utxosReceived)
+	})
+	t.Run("get_utxo_by_txid_with_typeValue_1", func(t *testing.T) {
+		tx := BLOCK4.Trans[1]
+		utxosExpected := []*UTXO{
+			{
+				TxId:      tx.Hash,
+				TypeValue: BLOCK3.Trans[1].Hash,
+				Index:     0,
+				Value:     2000,
+				PkeyTo:    tx.Transaction.Outputs[0].PkeyTo,
+			},
+		}
+		utxosReceived, err := db.GetUTXOSByTxId(tx.Hash)
+		assert.Nil(t, err)
+		assert.Equal(t, utxosExpected, utxosReceived)
+	})
+	t.Run("get_utxo_by_txid_with_typeValue_2", func(t *testing.T) {
+		tx := BLOCK3.Trans[1]
+		utxosExpected := []*UTXO{
+			{
+				TxId:      tx.Hash,
+				TypeValue: tx.Hash,
+				Index:     1,
+				Value:     3000,
+				PkeyTo:    tx.Transaction.Outputs[1].PkeyTo,
+			},
+			{
+				TxId:      tx.Hash,
+				TypeValue: tx.Hash,
+				Index:     2,
+				Value:     4000,
+				PkeyTo:    tx.Transaction.Outputs[2].PkeyTo,
+			},
+		}
+		utxosReceived, err := db.GetUTXOSByTxId(tx.Hash)
+		assert.Nil(t, err)
+		assert.ElementsMatch(t, utxosExpected, utxosReceived)
 	})
 	err = db.Close()
 	assert.Nil(t, err)
