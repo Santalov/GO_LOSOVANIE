@@ -85,6 +85,7 @@ func (bc *Blockchain) Setup(thisPrv []byte, thisAddr string, validators []*Valid
 	bc.appendVoting = make(map[*ValidatorNode]int)
 	bc.addrToValidator = make(map[string]*ValidatorNode)
 	bc.pkeyToValidator = make(map[[PKEY_SIZE]byte]*ValidatorNode)
+	bc.activeHostsExceptMe = make([]string, 0)
 
 	bc.allValidators = validators
 	for _, v := range bc.allValidators {
@@ -234,11 +235,15 @@ func (bc *Blockchain) onBlockReceiveViewer(data []byte, response chan ResponseMs
 
 	if blockLen != len(data) {
 		addr := bc.activeValidators[(bc.chainSize+1)%uint64(len(bc.activeValidators))].addr
+		// опасно начинать общаться с другими участниками сети до отсылки ответа текущему
+		// т.е опасно делать response <- resp после bc.getMissingBlock(addr)
 		bc.getMissingBlock(addr)
 		response <- resp
 		return
 	}
 
+	// установку nextTimeTick возможно надо перенести наверх, до вызова bc.getMissingBlock
+	// а из getMissingBlock установку nextTickTime полностью убрать
 	bc.nextTickTime = bc.getTimeOfNextTick(time.Unix(0, int64(b.timestamp)))
 	bc.currentBock = new(BlocAndkHash)
 	copy(bc.currentBock.hash[:], hash)
@@ -278,6 +283,7 @@ func (bc *Blockchain) onAppendVote(data []byte, response chan ResponseMsg) {
 }
 
 func (bc *Blockchain) onAppendVoteViewer(data []byte, response chan ResponseMsg) {
+	// по логике эта функция должна рассылать всем голос о том, что валидатор согласен принять вьювера в сеть
 	var hash [HASH_SIZE]byte
 	var pkey [PKEY_SIZE]byte
 	var size uint64
@@ -309,6 +315,7 @@ func (bc *Blockchain) onAppendVoteViewer(data []byte, response chan ResponseMsg)
 }
 
 func (bc *Blockchain) onAppendVoteValidator(data []byte, response chan ResponseMsg) {
+	// эта функция мб никогда не вызовется
 	var appendPkey [PKEY_SIZE]byte
 	var senderPkey [PKEY_SIZE]byte
 	var sig [SIG_SIZE]byte
@@ -323,6 +330,8 @@ func (bc *Blockchain) onAppendVoteValidator(data []byte, response chan ResponseM
 		}
 		return
 	}
+	// после того, как придет первый голос, цикл в doAppendVoting перестанет посылать голоса
+	// мб в посылать голос за добавление валидатора не в doAppendVoting, а в onAppendVoteViewer
 	bc.appendVoting[bc.pkeyToValidator[appendPkey]] += 1
 	response <- ResponseMsg{ok: true}
 
@@ -417,7 +426,10 @@ func (bc *Blockchain) processKick() {
 		}
 	}
 	bc.kickVoting = make(map[*ValidatorNode]int)
+	// очистку blockVoting надо делать в момент, когда expectBlocks устанавливается в true
+	// так как иначе, если лидер сгенерирует блок чуть раньше, можно затереть свой голос
 	bc.blockVoting = make(map[*ValidatorNode]int)
+	// с appendVoting аналогично, так как можно затереть отметку, котору ставит onAppendVoteViewer
 	bc.appendVoting = make(map[*ValidatorNode]int)
 	var clearedSuspiciousValidators = make(map[*ValidatorNode]int)
 	for _, validator := range bc.activeValidators {
@@ -514,7 +526,10 @@ func (bc *Blockchain) doTickVotingProcessing() {
 			if bc.currentBock != nil {
 				fmt.Println("block accepted")
 				bc.updatePrevHashBlock()
-				bc.db.SaveNextBlock(bc.currentBock)
+				err := bc.db.SaveNextBlock(bc.currentBock)
+				if err != nil {
+					panic(err)
+				}
 				bc.updateUnrecordedTrans()
 				bc.chainSize += 1
 				bc.suspiciousValidators[bc.currentLeader] = 0
@@ -527,11 +542,16 @@ func (bc *Blockchain) doTickVotingProcessing() {
 		fmt.Println("vote kick check")
 		bc.tryKickValidator()
 	} else {
+		// get missing block надо делать после того, как блок был сгенерирован и сохранен всеми участниками сети
+		// иначе возможно получить только максимум предыдущий блок
+		// то есть разрыв в один принятый блок получается неустранимым
+		// мб его нужно перенести в doTickPreparation
 		bc.getMissingBlock(bc.activeValidators[(bc.chainSize+1)%uint64(len(bc.activeValidators))].addr)
 	}
 
 	bc.currentBock = nil   // очищаем инфу о старом блоке, чтобы быть готовым принимать новые
 	bc.expectBlocks = true // меняем флаг заранее, чтобы не пропустить блок
+	// вместе с обнулением блока необходимо обнулять и все хранилища голосов, привязанные к блоку (blockVoting, appendVoting)
 	timeBeforeNextTick := bc.nextTickTime.Sub(time.Now())
 	fmt.Println("time before next tick", timeBeforeNextTick)
 	go func() {
@@ -575,6 +595,7 @@ func (bc *Blockchain) doAppendValidator() {
 		if float32(val)/float32(len(bc.activeValidators)) >= 0.5 {
 			bc.activeValidators = appendValidator(bc.activeValidators,
 				bc.allValidators, valid)
+			// сточка ниже удалит еще не принятых в сеть вьюверов из массива activeHostsExceptMe
 			bc.activeHostsExceptMe = hostsExceptGiven(bc.activeValidators, bc.thisValidator.pkey)
 			if bc.thisValidator.pkey == valid.pkey {
 				bc.validatorStatus = VALIDATOR
@@ -634,6 +655,8 @@ func (bc *Blockchain) prepare() {
 	bc.sendAppendMsg(hosts)
 	bc.validatorStatus = VIEWER
 	if bc.nextTickTime.Sub(time.Now()) < 0 {
+		// все равно nextTickTime может быть меньше текущего времени, если запрос попал в промежуток
+		// между созданием нового блока и окончанием голосования за его принятие
 		bc.getMissingBlock(addr)
 	}
 	sleepTime := bc.nextTickTime.Sub(time.Now())
@@ -682,9 +705,13 @@ func (bc *Blockchain) getMissingBlock(host string) bool {
 		copy(bc.currentBock.hash[:], hash)
 		bc.currentBock.b = &b
 		bc.updatePrevHashBlock()
-		bc.db.SaveNextBlock(bc.currentBock)
+		err := bc.db.SaveNextBlock(bc.currentBock)
+		if err != nil {
+			panic(err)
+		}
 		bc.chainSize += 1
 		fmt.Println("current chain size is ", bc.chainSize)
+		// Это одни из предыдущих блоко, в nextTickTime будет время предыдущего (уже прошедшего) тика
 		bc.nextTickTime = bc.getTimeOfNextTick(time.Unix(0, int64(b.timestamp)))
 		return true
 	}
@@ -749,7 +776,10 @@ func (bc *Blockchain) onGetBlockAfter(data []byte, response chan ByteResponse) {
 		}
 		return
 	}
-	b, _ := bc.db.GetBlockAfter(hash)
+	b, err := bc.db.GetBlockAfter(hash)
+	if err != nil {
+		panic(err)
+	}
 	if b == nil {
 		response <- ByteResponse{
 			ok:    false,
