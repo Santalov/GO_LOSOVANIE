@@ -267,7 +267,7 @@ func (bc *Blockchain) voteAppendValidator() {
 }
 
 func (bc *Blockchain) onAppendVote(data []byte, response chan ResponseMsg) {
-	if len(data) == PKEY_SIZE+PKEY_SIZE+1+SIG_SIZE {
+	if len(data) == PKEY_SIZE*2 + SIG_SIZE {
 		bc.onAppendVoteValidator(data, response)
 		return
 	}
@@ -592,11 +592,10 @@ func (bc *Blockchain) tryKickValidator() {
 func (bc *Blockchain) doAppendValidator() {
 	fmt.Println("do append new validator")
 	for valid, val := range bc.appendVoting {
-		if float32(val)/float32(len(bc.activeValidators)) >= 0.5 {
+		if float32(val)/float32(len(bc.activeValidators)) > 0.5 {
+			fmt.Println(valid.addr + " is new validator")
 			bc.activeValidators = appendValidator(bc.activeValidators,
 				bc.allValidators, valid)
-			// сточка ниже удалит еще не принятых в сеть вьюверов из массива activeHostsExceptMe
-			bc.activeHostsExceptMe = hostsExceptGiven(bc.activeValidators, bc.thisValidator.pkey)
 			if bc.thisValidator.pkey == valid.pkey {
 				bc.validatorStatus = VALIDATOR
 			}
@@ -678,6 +677,7 @@ func (bc *Blockchain) sendAppendMsg(hosts []string) {
 				valid := bc.pkeyToValidator[pkey]
 				bc.activeValidators = appendValidator(bc.activeValidators,
 					bc.allValidators, valid)
+				bc.activeHostsExceptMe = append(bc.activeHostsExceptMe, valid.addr)
 				bc.suspiciousValidators[valid] = 0
 			}
 		}
