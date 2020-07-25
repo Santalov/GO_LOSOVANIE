@@ -30,18 +30,22 @@ type Transaction struct {
 	OutputSize uint32
 	Outputs    []TransactionOutput
 	TypeValue  [HASH_SIZE]byte // необязательное поле
-	TypeVote   uint32          // необязательное поле, в первой транзе в блоке (которая создает деньги) здесь номер блока
-	Duration   uint32          // необязательное поле
+	TypeVote   uint32          // необязательное поле
+	Duration   uint32          // необязательное поле, в первой транзе в блоке (которая создает деньги) здесь номер блока
 	HashLink   [HASH_SIZE]byte // необязательное поле
 	Signature  [SIG_SIZE]byte
+	// TypeValue равен хешу предыдущей транзы, если предыдущая транза была транзой создания голосования, то есть у неё был typeVote != 0
+	// TypeValue равен TypeValue предыдущей транзы, если предыдущая транза обычная (то есть её typeVote == 0)
+	// HashLink не влияет на typeVote
+	// при подсчете голосов учитываются разные typeValue, если было несколько транз создания голосования, то есть был непустой hashLink
 }
 
 type UTXO struct {
-	TxId   	   [HASH_SIZE]byte // хеш транзы, из которой взят выход
-	TypeValue  [HASH_SIZE]byte
-	Index      uint32          // номер выхода в массиве выходов
-	Value      uint32
-	PkeyTo     [PKEY_SIZE]byte
+	TxId      [HASH_SIZE]byte // хеш транзы, из которой взят выход
+	TypeValue [HASH_SIZE]byte
+	Index     uint32 // номер выхода в массиве выходов
+	Value     uint32
+	PkeyTo    [PKEY_SIZE]byte
 }
 
 func (utxo *UTXO) FromBytes(data []byte) int {
@@ -52,15 +56,15 @@ func (utxo *UTXO) FromBytes(data []byte) int {
 	copy(utxo.TxId[:], data[:offset])
 	copy(utxo.TypeValue[:], data[offset:offset+HASH_SIZE])
 	offset += HASH_SIZE
-	utxo.Index = binary.LittleEndian.Uint32(data[offset:offset+INT_32_SIZE])
+	utxo.Index = binary.LittleEndian.Uint32(data[offset : offset+INT_32_SIZE])
 	offset += INT_32_SIZE
-	utxo.Value = binary.LittleEndian.Uint32(data[offset:offset+INT_32_SIZE])
+	utxo.Value = binary.LittleEndian.Uint32(data[offset : offset+INT_32_SIZE])
 	offset += INT_32_SIZE
 	copy(utxo.PkeyTo[:], data[offset:])
 	return OK
 }
 
-func (utxo *UTXO) ToBytes() []byte{
+func (utxo *UTXO) ToBytes() []byte {
 	data := make([]byte, UTXO_SIZE)
 	var offset uint32 = HASH_SIZE
 	copy(data[:offset], utxo.TxId[:])
@@ -183,7 +187,7 @@ func (t *Transaction) CreateTrans(inputs []UTXO, outputs map[[PKEY_SIZE]byte]uin
 		t.Outputs = append(t.Outputs,
 			TransactionOutput{
 				PkeyTo: pkey,
-				Value: val,
+				Value:  val,
 			})
 		maxValOutputs += val
 	}
@@ -192,7 +196,7 @@ func (t *Transaction) CreateTrans(inputs []UTXO, outputs map[[PKEY_SIZE]byte]uin
 		if in.TypeValue == typeValue && maxValInputs < maxValOutputs {
 			t.Inputs = append(t.Inputs,
 				TransactionInput{
-					PrevId: in.TxId,
+					PrevId:   in.TxId,
 					OutIndex: in.Index,
 				})
 			maxValInputs += in.Value
@@ -210,8 +214,8 @@ func (t *Transaction) CreateTrans(inputs []UTXO, outputs map[[PKEY_SIZE]byte]uin
 	if maxValInputs > maxValOutputs {
 		t.Outputs = append(t.Outputs,
 			TransactionOutput{
-			PkeyTo: inputs[0].PkeyTo,
-			Value: maxValInputs - maxValOutputs,
+				PkeyTo: inputs[0].PkeyTo,
+				Value:  maxValInputs - maxValOutputs,
 			})
 	}
 	t.TypeValue = typeValue

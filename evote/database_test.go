@@ -82,10 +82,11 @@ func TestDatabase(t *testing.T) {
 		tx := BLOCK0.Trans[0]
 		utxosExpected := []*UTXO{
 			{
-				TxId:   tx.Hash,
-				Index:  0,
-				Value:  tx.Transaction.Outputs[0].Value,
-				PkeyTo: pkey,
+				TxId:      tx.Hash,
+				TypeValue: ZERO_ARRAY_HASH,
+				Index:     0,
+				Value:     tx.Transaction.Outputs[0].Value,
+				PkeyTo:    pkey,
 			},
 		}
 		utxosReceived, err := db.GetUTXOSByPkey(pkey)
@@ -97,10 +98,11 @@ func TestDatabase(t *testing.T) {
 		tx := BLOCK0.Trans[0]
 		utxosExpected := []*UTXO{
 			{
-				TxId:   tx.Hash,
-				Index:  0,
-				Value:  tx.Transaction.Outputs[0].Value,
-				PkeyTo: pkey,
+				TxId:      tx.Hash,
+				TypeValue: ZERO_ARRAY_HASH,
+				Index:     0,
+				Value:     tx.Transaction.Outputs[0].Value,
+				PkeyTo:    pkey,
 			},
 		}
 		utxosReceived, err := db.GetUTXOSByTxId(tx.Hash)
@@ -161,16 +163,18 @@ func TestDatabase(t *testing.T) {
 		output1 := tx1.Transaction.Outputs[1]
 		utxosExpected := []*UTXO{
 			{
-				TxId:   tx0.Hash,
-				Index:  0,
-				Value:  output0.Value,
-				PkeyTo: output0.PkeyTo,
+				TxId:      tx0.Hash,
+				TypeValue: ZERO_ARRAY_HASH,
+				Index:     0,
+				Value:     output0.Value,
+				PkeyTo:    output0.PkeyTo,
 			},
 			{
-				TxId:   tx1.Hash,
-				Index:  1,
-				Value:  output1.Value,
-				PkeyTo: output1.PkeyTo,
+				TxId:      tx1.Hash,
+				TypeValue: ZERO_ARRAY_HASH,
+				Index:     1,
+				Value:     output1.Value,
+				PkeyTo:    output1.PkeyTo,
 			},
 		}
 		utxosReceived, err := db.GetUTXOSByPkey(pkey)
@@ -183,10 +187,11 @@ func TestDatabase(t *testing.T) {
 		pkey := output.PkeyTo
 		utxosExpected := []*UTXO{
 			{
-				TxId:   tx.Hash,
-				Index:  0,
-				Value:  output.Value,
-				PkeyTo: pkey,
+				TxId:      tx.Hash,
+				TypeValue: ZERO_ARRAY_HASH,
+				Index:     0,
+				Value:     output.Value,
+				PkeyTo:    pkey,
 			},
 		}
 		utxosReceived, err := db.GetUTXOSByPkey(pkey)
@@ -198,10 +203,11 @@ func TestDatabase(t *testing.T) {
 		output0 := tx0.Transaction.Outputs[0]
 		utxosExpected := []*UTXO{
 			{
-				TxId:   tx0.Hash,
-				Index:  0,
-				Value:  output0.Value,
-				PkeyTo: output0.PkeyTo,
+				TxId:      tx0.Hash,
+				TypeValue: ZERO_ARRAY_HASH,
+				Index:     0,
+				Value:     output0.Value,
+				PkeyTo:    output0.PkeyTo,
 			},
 		}
 		utxosReceived, err := db.GetUTXOSByTxId(tx0.Hash)
@@ -214,16 +220,18 @@ func TestDatabase(t *testing.T) {
 		output1 := tx1.Transaction.Outputs[1]
 		utxosExpected := []*UTXO{
 			{
-				TxId:   tx1.Hash,
-				Index:  0,
-				Value:  output0.Value,
-				PkeyTo: output0.PkeyTo,
+				TxId:      tx1.Hash,
+				TypeValue: ZERO_ARRAY_HASH,
+				Index:     0,
+				Value:     output0.Value,
+				PkeyTo:    output0.PkeyTo,
 			},
 			{
-				TxId:   tx1.Hash,
-				Index:  1,
-				Value:  output1.Value,
-				PkeyTo: output1.PkeyTo,
+				TxId:      tx1.Hash,
+				TypeValue: ZERO_ARRAY_HASH,
+				Index:     1,
+				Value:     output1.Value,
+				PkeyTo:    output1.PkeyTo,
 			},
 		}
 		utxosReceived, err := db.GetUTXOSByTxId(tx1.Hash)
@@ -339,16 +347,18 @@ func TestDatabase(t *testing.T) {
 		output1 := tx1.Transaction.Outputs[0]
 		utxosExpected := []*UTXO{
 			{
-				TxId:   tx0.Hash,
-				Index:  0,
-				Value:  output0.Value,
-				PkeyTo: pkey,
+				TxId:      tx0.Hash,
+				TypeValue: ZERO_ARRAY_HASH,
+				Index:     0,
+				Value:     output0.Value,
+				PkeyTo:    pkey,
 			},
 			{
-				TxId:   tx1.Hash,
-				Index:  0,
-				Value:  output1.Value,
-				PkeyTo: pkey,
+				TxId:      tx1.Hash,
+				TypeValue: ZERO_ARRAY_HASH,
+				Index:     0,
+				Value:     output1.Value,
+				PkeyTo:    pkey,
 			},
 		}
 		utxosReceived, err := db.GetUTXOSByPkey(pkey)
@@ -376,6 +386,12 @@ func TestDatabase(t *testing.T) {
 		}, blocksReceived)
 		assert.Equal(t, blocksReceived[0].Hash, blockHash(blocksReceived[0].B))
 		assert.Equal(t, B_AND_H3.Hash, blockHash(blocksReceived[0].B))
+	})
+	t.Run("get_utxo_by_pkey_with_typeValue_0", func(t *testing.T) {
+
+	})
+	t.Run("get_utxo_by_txid_with_typeValue_0", func(t *testing.T) {
+
 	})
 	t.Run("insert_block_4_with_more_optional_fields", func(t *testing.T) {
 		err := db.SaveNextBlock(&B_AND_H4)

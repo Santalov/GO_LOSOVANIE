@@ -8,8 +8,8 @@ create table block (
 create table transaction (
     txId bytea primary key,
     index integer not null, -- to persist order of transactions in block
-    typeValue bytea null,
-    typeVote integer null,
+    typeValue bytea,
+    typeVote integer,
     duration integer null,
     hashLink bytea null,
     signature bytea not null,

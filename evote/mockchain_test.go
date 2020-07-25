@@ -85,10 +85,10 @@ func makeCoinbaseTx(val uint32, pkeyTo [PKEY_SIZE]byte, blockNumber uint32) *Tra
 				PkeyTo: pkeyTo,
 			},
 		},
-		Duration:  0,
+		Duration:  blockNumber,
 		HashLink:  ZERO_ARRAY_HASH,
 		Signature: randSig(),
-		TypeVote:  blockNumber,
+		TypeVote:  0,
 		TypeValue: ZERO_ARRAY_HASH,
 	}
 }
@@ -214,7 +214,7 @@ var TXS_BLOCK3 = []*Transaction{
 			},
 		},
 		Duration:  100,
-		TypeVote:  1,
+		TypeVote:  1, // у транзы создания голосования ненулевой id
 		TypeValue: ZERO_ARRAY_HASH,
 		HashLink:  ZERO_ARRAY_HASH,
 	},
