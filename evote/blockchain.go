@@ -53,7 +53,7 @@ type Blockchain struct {
 	blockVoting          map[*ValidatorNode]int
 	kickVoting           map[*ValidatorNode]int
 	appendVoting         map[*ValidatorNode]int
-	appendVotingMe		 map[*ValidatorNode]int
+	appendVotingMe       map[*ValidatorNode]int
 	suspiciousValidators map[*ValidatorNode]int
 	tickPreparation      chan bool // каналы, которые задают цикл работы ноды
 	tickThisLeader       chan bool
@@ -234,6 +234,7 @@ func (bc *Blockchain) onBlockReceiveViewer(data []byte, response chan ResponseMs
 	var b Block
 	hash, blockLen := b.Verify(data, bc.prevBlockHash, creator, bc.db)
 	fmt.Println("block len", blockLen)
+	bc.nextTickTime = bc.getTimeOfNextTick(time.Unix(0, int64(b.timestamp)))
 
 	if blockLen != len(data) {
 		addr := bc.activeValidators[(bc.chainSize+1)%uint64(len(bc.activeValidators))].addr
@@ -246,7 +247,6 @@ func (bc *Blockchain) onBlockReceiveViewer(data []byte, response chan ResponseMs
 
 	// установку nextTimeTick возможно надо перенести наверх, до вызова bc.getMissingBlock
 	// а из getMissingBlock установку nextTickTime полностью убрать
-	bc.nextTickTime = bc.getTimeOfNextTick(time.Unix(0, int64(b.timestamp)))
 	bc.currentBock = new(BlocAndkHash)
 	copy(bc.currentBock.hash[:], hash)
 	bc.currentBock.b = &b
@@ -269,7 +269,7 @@ func (bc *Blockchain) voteAppendValidator() {
 }
 
 func (bc *Blockchain) onAppendVote(data []byte, response chan ResponseMsg) {
-	if len(data) == PKEY_SIZE*2 + SIG_SIZE {
+	if len(data) == PKEY_SIZE*2+SIG_SIZE {
 		bc.onAppendVoteValidator(data, response)
 		return
 	}
@@ -334,8 +334,6 @@ func (bc *Blockchain) onAppendVoteValidator(data []byte, response chan ResponseM
 		}
 		return
 	}
-	// после того, как придет первый голос, цикл в doAppendVoting перестанет посылать голоса
-	// мб в посылать голос за добавление валидатора не в doAppendVoting, а в onAppendVoteViewer
 	bc.appendVoting[bc.pkeyToValidator[appendPkey]] += 1
 	response <- ResponseMsg{ok: true}
 
@@ -430,12 +428,6 @@ func (bc *Blockchain) processKick() {
 		}
 	}
 	bc.kickVoting = make(map[*ValidatorNode]int)
-	// очистку blockVoting надо делать в момент, когда expectBlocks устанавливается в true
-	// так как иначе, если лидер сгенерирует блок чуть раньше, можно затереть свой голос
-	bc.blockVoting = make(map[*ValidatorNode]int)
-	// с appendVoting аналогично, так как можно затереть отметку, котору ставит onAppendVoteViewer
-	bc.appendVoting = make(map[*ValidatorNode]int)
-	bc.appendVotingMe = make(map[*ValidatorNode]int)
 	var clearedSuspiciousValidators = make(map[*ValidatorNode]int)
 	for _, validator := range bc.activeValidators {
 		bc.kickVoting[validator] = 0
@@ -457,8 +449,9 @@ func (bc *Blockchain) doTickPreparation() {
 		}
 
 		fmt.Println("process kick")
-
 		bc.currentLeader = bc.activeValidators[bc.genBlocksCount%uint64(len(bc.activeValidators))]
+	} else {
+		bc.getMissingBlock(bc.activeValidators[(bc.chainSize+1)%uint64(len(bc.activeValidators))].addr)
 	}
 	fmt.Println(bc.chainSize)
 	bc.nextTickTime = bc.getTimeOfNextTick(time.Now())
@@ -547,16 +540,16 @@ func (bc *Blockchain) doTickVotingProcessing() {
 		fmt.Println("vote kick check")
 		bc.tryKickValidator()
 	} else {
-		// get missing block надо делать после того, как блок был сгенерирован и сохранен всеми участниками сети
-		// иначе возможно получить только максимум предыдущий блок
-		// то есть разрыв в один принятый блок получается неустранимым
-		// мб его нужно перенести в doTickPreparation
 		bc.getMissingBlock(bc.activeValidators[(bc.chainSize+1)%uint64(len(bc.activeValidators))].addr)
 	}
 
 	bc.currentBock = nil   // очищаем инфу о старом блоке, чтобы быть готовым принимать новые
 	bc.expectBlocks = true // меняем флаг заранее, чтобы не пропустить блок
 	// вместе с обнулением блока необходимо обнулять и все хранилища голосов, привязанные к блоку (blockVoting, appendVoting)
+	bc.blockVoting = make(map[*ValidatorNode]int)
+	bc.appendVoting = make(map[*ValidatorNode]int)
+	bc.appendVotingMe = make(map[*ValidatorNode]int)
+	bc.currentLeader = bc.activeValidators[bc.genBlocksCount%uint64(len(bc.activeValidators))]
 	timeBeforeNextTick := bc.nextTickTime.Sub(time.Now())
 	fmt.Println("time before next tick", timeBeforeNextTick)
 	go func() {
@@ -719,8 +712,6 @@ func (bc *Blockchain) getMissingBlock(host string) bool {
 		}
 		bc.chainSize += 1
 		fmt.Println("current chain size is ", bc.chainSize)
-		// Это одни из предыдущих блоко, в nextTickTime будет время предыдущего (уже прошедшего) тика
-		bc.nextTickTime = bc.getTimeOfNextTick(time.Unix(0, int64(b.timestamp)))
 		return true
 	}
 	return false
@@ -793,6 +784,7 @@ func (bc *Blockchain) onGetBlockAfter(data []byte, response chan ByteResponse) {
 			ok:    false,
 			error: "no such block",
 		}
+		return
 	}
 	// ответ с блоком
 	blockBytes := b.b.ToBytes()
