@@ -171,11 +171,71 @@ func (t *Transaction) FromBytes(data []byte) int {
 	return size
 }
 
-func (t *Transaction) CreateTrans(input []UTXO, pkeys [][PKEY_SIZE]byte, value []uint32) int {
-	if len(input) == 0 || len(pkeys) == 0 || len(value) == 0 {
+func (t *Transaction) CreateTrans(inputs []UTXO, outputs map[[PKEY_SIZE]byte]uint32,
+	typeValue [HASH_SIZE]byte, keys *CryptoKeysData) int {
+	if len(inputs) == 0 || len(outputs) == 0 {
 		return ERR_CREATE_TRANS
 	}
-	
+	var maxValInputs uint32 = 0
+	for _, in := range inputs {
+		if in.TypeValue != typeValue {
+			return ERR_CREATE_TRANS
+		}
+		maxValInputs += in.Value
+	}
+	var maxValOutputs uint32 = 0
+	for _, v := range outputs {
+		maxValOutputs += v
+	}
+
+	if maxValInputs < maxValOutputs {
+		return ERR_CREATE_TRANS
+	}
+
+	var i = 0
+	var currVal = int64(inputs[0].Value)
+	t.OutputSize = uint32(len(outputs))
+	for pkey, val := range outputs {
+		t.Outputs = append(t.Outputs,
+			TransactionOutput{
+			PkeyTo: pkey,
+			Value: val,
+		})
+		currVal -= int64(val)
+		if currVal < 0 {
+			for {
+				if currVal >= 0 {
+					break
+				}
+				i++
+				currVal += int64(inputs[i].Value)
+
+			}
+		}
+	}
+
+	if currVal > 0 {
+		t.Outputs = append(t.Outputs,
+			TransactionOutput{
+			PkeyTo: inputs[0].PkeyTo,
+			Value: uint32(currVal),
+			})
+	}
+	t.InputSize = uint32(i) + 1
+	for ; i >= 0; i-- {
+		t.Inputs = append(t.Inputs,
+			TransactionInput{
+				PrevId: inputs[i].TxId,
+				OutIndex: inputs[i].Index,
+			})
+	}
+	t.TypeValue = typeValue
+	t.TypeVote = 0 // заглушка, нужен фикс
+	t.Duration = 0 // заглушка, нужен фикс
+	t.HashLink = ZERO_ARRAY_HASH
+	t.Signature = ZERO_ARRAY_SIG
+	copy(t.Signature[:], keys.Sign(t.ToBytes()))
+
 	return OK
 }
 
