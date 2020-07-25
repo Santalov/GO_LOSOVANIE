@@ -483,8 +483,6 @@ func (bc *Blockchain) doTickVoting() {
 		copy(voteData[HASH_SIZE+PKEY_SIZE:HASH_SIZE+PKEY_SIZE+1], vote[:])
 		voteData = bc.thisKey.AppendSign(voteData)
 		go bc.network.SendVoteToAll(bc.activeHostsExceptMe, voteData)
-	}  else {
-		bc.getMissingBlock(bc.activeValidators[(bc.chainSize+1)%uint64(len(bc.activeValidators))].addr)
 	}
 	var timeWhileVotesAreReceived = bc.nextTickTime.Add(-bc.justWaitingTime).Sub(time.Now())
 	fmt.Println("sleeping for ", timeWhileVotesAreReceived)
