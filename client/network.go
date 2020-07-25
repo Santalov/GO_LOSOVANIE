@@ -98,11 +98,7 @@ func (n *Network) Init(allHosts []string, key [evote.PKEY_SIZE]byte) {
 	n.createWorkingHosts()
 }
 
-func (n *Network) GetTxsByPkey(pkey [evote.PKEY_SIZE]byte) ([]*evote.Transaction, error) {
-	data, err := makeBinaryRequest(n.curHost, "/getTxsByPubKey", pkey[:])
-	if err != nil {
-		return nil, err
-	}
+func parseTrans(data []byte) ([]*evote.Transaction, error) {
 	transSize := binary.LittleEndian.Uint32(data[:evote.INT_32_SIZE])
 	offset := evote.INT_32_SIZE
 	txs := make([]*evote.Transaction, 0)
@@ -118,6 +114,29 @@ func (n *Network) GetTxsByPkey(pkey [evote.PKEY_SIZE]byte) ([]*evote.Transaction
 		}
 	}
 	return txs, nil
+}
+
+func (n *Network) GetTxsByHashes(hashes [][evote.HASH_SIZE]byte) ([]*evote.Transaction, error) {
+	reqData := make([]byte, len(hashes)*evote.HASH_SIZE+evote.INT_32_SIZE)
+	binary.LittleEndian.PutUint32(reqData[:evote.INT_32_SIZE], uint32(len(hashes)))
+	offset := evote.INT_32_SIZE
+	for _, h := range hashes {
+		copy(reqData[offset:offset+evote.HASH_SIZE], h[:])
+		offset += evote.HASH_SIZE
+	}
+	data, err := makeBinaryRequest(n.curHost, "/getTxs", reqData)
+	if err != nil {
+		return nil, err
+	}
+	return parseTrans(data)
+}
+
+func (n *Network) GetTxsByPkey(pkey [evote.PKEY_SIZE]byte) ([]*evote.Transaction, error) {
+	data, err := makeBinaryRequest(n.curHost, "/getTxsByPubKey", pkey[:])
+	if err != nil {
+		return nil, err
+	}
+	return parseTrans(data)
 }
 
 func (n *Network) GetUtxosByPkey(pkey [evote.PKEY_SIZE]byte) ([]*evote.UTXO, error) {
