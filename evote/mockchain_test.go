@@ -119,7 +119,7 @@ var COINBASE_TXS = []*Transaction{
 	makeCoinbaseTx(2000, keyPairs[0].pub, 1),
 	makeCoinbaseTx(3000, keyPairs[1].pub, 2),
 	makeCoinbaseTx(3000, keyPairs[1].pub, 3),
-	makeCoinbaseTx(3000, keyPairs[1].pub, 4),
+	makeCoinbaseTx(3000, keyPairs[6].pub, 4),
 }
 
 var TXS_BLOCK0 = []*Transaction{

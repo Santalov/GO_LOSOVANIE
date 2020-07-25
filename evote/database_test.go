@@ -448,7 +448,15 @@ func TestDatabase(t *testing.T) {
 	t.Run("get_utxo_by_pkey_with_typeValue_1", func(t *testing.T) {
 		tx := BLOCK4.Trans[1]
 		pkey := tx.Transaction.Outputs[0].PkeyTo
+		tx1 := BLOCK4.Trans[0]
 		utxosExpected := []*UTXO{
+			{
+				TxId:      tx1.Hash,
+				TypeValue: ZERO_ARRAY_HASH,
+				Index:     0,
+				Value:     3000,
+				PkeyTo:    pkey,
+			},
 			{
 				TxId:      tx.Hash,
 				TypeValue: BLOCK3.Trans[1].Hash,
@@ -459,7 +467,7 @@ func TestDatabase(t *testing.T) {
 		}
 		utxosReceived, err := db.GetUTXOSByPkey(pkey)
 		assert.Nil(t, err)
-		assert.Equal(t, utxosExpected, utxosReceived)
+		assert.ElementsMatch(t, utxosExpected, utxosReceived)
 	})
 	t.Run("get_undefined_utxo_with_typeValue", func(t *testing.T) {
 		tx := BLOCK3.Trans[1]
