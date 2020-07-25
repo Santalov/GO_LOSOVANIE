@@ -37,10 +37,41 @@ type Transaction struct {
 }
 
 type UTXO struct {
-	TxId   [HASH_SIZE]byte // хеш транзы, из которой взят выход
-	Index  uint32          // номер выхода в массиве выходов
-	Value  uint32
-	PkeyTo [PKEY_SIZE]byte
+	TxId   	   [HASH_SIZE]byte // хеш транзы, из которой взят выход
+	TypeValue  [HASH_SIZE]byte
+	Index      uint32          // номер выхода в массиве выходов
+	Value      uint32
+	PkeyTo     [PKEY_SIZE]byte
+}
+
+func (utxo *UTXO) FromBytes(data []byte) int {
+	if len(data) != UTXO_SIZE {
+		return ERR_UTXO_SIZE
+	}
+	var offset uint32 = HASH_SIZE
+	copy(utxo.TxId[:], data[:offset])
+	copy(utxo.TypeValue[:], data[offset:offset+HASH_SIZE])
+	offset += HASH_SIZE
+	utxo.Index = binary.LittleEndian.Uint32(data[offset:offset+INT_32_SIZE])
+	offset += INT_32_SIZE
+	utxo.Value = binary.LittleEndian.Uint32(data[offset:offset+INT_32_SIZE])
+	offset += INT_32_SIZE
+	copy(utxo.PkeyTo[:], data[offset:])
+	return OK
+}
+
+func (utxo *UTXO) ToBytes() []byte{
+	data := make([]byte, UTXO_SIZE)
+	var offset uint32 = HASH_SIZE
+	copy(data[:offset], utxo.TxId[:])
+	copy(data[offset:offset+HASH_SIZE], utxo.TypeValue[:])
+	offset += HASH_SIZE
+	binary.LittleEndian.PutUint32(data[offset:offset+INT_32_SIZE], utxo.Index)
+	offset += INT_32_SIZE
+	binary.LittleEndian.PutUint32(data[offset:offset+INT_32_SIZE], utxo.Value)
+	offset += INT_32_SIZE
+	copy(data[offset:offset+PKEY_SIZE], utxo.PkeyTo[:])
+	return data
 }
 
 func (t *TransactionInput) ToBytes() []byte {
@@ -138,6 +169,59 @@ func (t *Transaction) FromBytes(data []byte) int {
 	offset += HASH_SIZE
 	copy(t.Signature[:], data[offset:offset+SIG_SIZE])
 	return size
+}
+
+func (t *Transaction) CreateTrans(inputs []UTXO, outputs map[[PKEY_SIZE]byte]uint32,
+	typeValue [HASH_SIZE]byte, keys *CryptoKeysData) int {
+	if len(inputs) == 0 || len(outputs) == 0 {
+		return ERR_CREATE_TRANS
+	}
+
+	var maxValInputs uint32 = 0
+	var maxValOutputs uint32 = 0
+	for pkey, val := range outputs {
+		t.Outputs = append(t.Outputs,
+			TransactionOutput{
+				PkeyTo: pkey,
+				Value: val,
+			})
+		maxValOutputs += val
+	}
+
+	for _, in := range inputs {
+		if in.TypeValue == typeValue && maxValInputs < maxValOutputs {
+			t.Inputs = append(t.Inputs,
+				TransactionInput{
+					PrevId: in.TxId,
+					OutIndex: in.Index,
+				})
+			maxValInputs += in.Value
+		}
+	}
+
+	if maxValInputs < maxValOutputs {
+		t.Inputs = make([]TransactionInput, 0)
+		t.Outputs = make([]TransactionOutput, 0)
+		return ERR_CREATE_TRANS
+	}
+	t.OutputSize = uint32(len(t.Outputs))
+	t.InputSize = uint32(len(t.Inputs))
+
+	if maxValInputs > maxValOutputs {
+		t.Outputs = append(t.Outputs,
+			TransactionOutput{
+			PkeyTo: inputs[0].PkeyTo,
+			Value: maxValInputs - maxValOutputs,
+			})
+	}
+	t.TypeValue = typeValue
+	t.TypeVote = 0 // заглушка, нужен фикс
+	t.Duration = 0 // заглушка, нужен фикс
+	t.HashLink = ZERO_ARRAY_HASH
+	t.Signature = ZERO_ARRAY_SIG
+	copy(t.Signature[:], keys.Sign(t.ToBytes()))
+
+	return OK
 }
 
 func (t *Transaction) Verify(data []byte, db *Database) ([]byte, int) {

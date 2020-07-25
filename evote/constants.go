@@ -8,6 +8,8 @@ const (
 	ERR_BLOCK_SIZE    = -3
 	ERR_BLOCK_VERIFY  = -4
 	ERR_BLOCK_CREATOR = -5
+	ERR_UTXO_SIZE 	  = -6
+	ERR_CREATE_TRANS  = -7
 )
 
 //size consts
@@ -24,6 +26,7 @@ const (
 	MAX_TRANS_SIZE        = 100 //тут стоит заглушка, не более 100 транз в блоке
 	REWARD                = 1000
 	MAX_PREV_BLOCK_HASHES = 10
+	UTXO_SIZE 			  = HASH_SIZE*2 + 2*INT_32_SIZE + PKEY_SIZE
 )
 
 var PIDOR_KEY = [PKEY_SIZE]byte{

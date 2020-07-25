@@ -163,9 +163,13 @@ func (bc *Blockchain) Start() {
 		case msg := <-bc.chs.txsValidator:
 			// транза от валидатора
 			fmt.Println("Transaction from validator", msg)
+			bc.onTransReceive(msg.data, msg.response)
 		case msg := <-bc.chs.txsClient:
 			// транза от приложения-клиента
 			fmt.Println("Transaction from client", msg)
+			if bc.onTransReceive(msg.data, msg.response) {
+				go bc.network.SendTxToAll(bc.activeHostsExceptMe, msg.data)
+			}
 		case msg := <-bc.chs.blockAfter:
 			//запрос на блок от INACTIVE или VIEWER
 			bc.onGetBlockAfter(msg.data, msg.response)
@@ -183,6 +187,38 @@ func (bc *Blockchain) Start() {
 
 func (bc *Blockchain) getTimeOfNextTick(lastBlockTime time.Time) time.Time {
 	return lastBlockTime.Add(bc.blockAppendTime).Add(bc.blockVotingTime).Add(bc.justWaitingTime)
+}
+
+func (bc *Blockchain) appendUnrecordedTrans(t *Transaction, hash []byte) {
+	var transHash TransAndHash
+	transHash.Transaction = t
+	copy(transHash.Hash[:], hash)
+	bc.unrecordedTrans = append(bc.unrecordedTrans, transHash)
+}
+
+func (bc *Blockchain) onTransReceive(data []byte, response chan ResponseMsg) bool {
+	if bc.validatorStatus != VALIDATOR {
+		response <- ResponseMsg {
+			ok:    false,
+			error: "i'm not validator",
+		}
+		return false
+	}
+	var t Transaction
+	hash, transLen := t.Verify(data, bc.db)
+	if transLen != len(data) {
+		response <- ResponseMsg {
+			ok:    false,
+			error: "bad transaction from client",
+		}
+		return false
+	}
+	bc.appendUnrecordedTrans(&t, hash)
+	response <- ResponseMsg {
+		ok:    true,
+	}
+	return true
+
 }
 
 func (bc *Blockchain) onBlockReceive(data []byte, response chan ResponseMsg) {
@@ -420,6 +456,7 @@ func (bc *Blockchain) updateUnrecordedTrans() {
 			newUnrecorded = append(newUnrecorded, t)
 		}
 	}
+	bc.unrecordedTrans = newUnrecorded
 }
 
 func (bc *Blockchain) processKick() {
