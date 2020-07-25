@@ -176,57 +176,42 @@ func (t *Transaction) CreateTrans(inputs []UTXO, outputs map[[PKEY_SIZE]byte]uin
 	if len(inputs) == 0 || len(outputs) == 0 {
 		return ERR_CREATE_TRANS
 	}
+
 	var maxValInputs uint32 = 0
-	for _, in := range inputs {
-		if in.TypeValue != typeValue {
-			return ERR_CREATE_TRANS
-		}
-		maxValInputs += in.Value
-	}
 	var maxValOutputs uint32 = 0
-	for _, v := range outputs {
-		maxValOutputs += v
-	}
-
-	if maxValInputs < maxValOutputs {
-		return ERR_CREATE_TRANS
-	}
-
-	var i = 0
-	var currVal = int64(inputs[0].Value)
-	t.OutputSize = uint32(len(outputs))
 	for pkey, val := range outputs {
 		t.Outputs = append(t.Outputs,
 			TransactionOutput{
-			PkeyTo: pkey,
-			Value: val,
-		})
-		currVal -= int64(val)
-		if currVal < 0 {
-			for {
-				if currVal >= 0 {
-					break
-				}
-				i++
-				currVal += int64(inputs[i].Value)
+				PkeyTo: pkey,
+				Value: val,
+			})
+		maxValOutputs += val
+	}
 
-			}
+	for _, in := range inputs {
+		if in.TypeValue == typeValue && maxValInputs < maxValOutputs {
+			t.Inputs = append(t.Inputs,
+				TransactionInput{
+					PrevId: in.TxId,
+					OutIndex: in.Index,
+				})
+			maxValInputs += in.Value
 		}
 	}
 
-	if currVal > 0 {
+	if maxValInputs < maxValOutputs {
+		t.Inputs = make([]TransactionInput, 0)
+		t.Outputs = make([]TransactionOutput, 0)
+		return ERR_CREATE_TRANS
+	}
+	t.OutputSize = uint32(len(t.Outputs))
+	t.InputSize = uint32(len(t.Inputs))
+
+	if maxValInputs > maxValOutputs {
 		t.Outputs = append(t.Outputs,
 			TransactionOutput{
 			PkeyTo: inputs[0].PkeyTo,
-			Value: uint32(currVal),
-			})
-	}
-	t.InputSize = uint32(i) + 1
-	for ; i >= 0; i-- {
-		t.Inputs = append(t.Inputs,
-			TransactionInput{
-				PrevId: inputs[i].TxId,
-				OutIndex: inputs[i].Index,
+			Value: maxValInputs - maxValOutputs,
 			})
 	}
 	t.TypeValue = typeValue
