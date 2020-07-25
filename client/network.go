@@ -66,7 +66,7 @@ func pingHosts(hosts []string) (alive []string) {
 	return
 }
 
-func (n *Network) selectNextHost() {
+func (n *Network) SelectNextHost() {
 	clearedHosts := make([]string, 0)
 	for i, host := range n.workingHosts {
 		if host != n.curHost {
@@ -111,10 +111,32 @@ func (n *Network) GetTxsByPkey(pkey [evote.PKEY_SIZE]byte) ([]*evote.Transaction
 		txLen := tx.FromBytes(data[offset:])
 		if txLen > 0 {
 			offset += txLen
+			txs = append(txs, tx)
 		} else {
+			fmt.Println("incorrect transaction in response from validator")
 			return nil, fmt.Errorf("incorrect transaction in response from validator")
 		}
-		txs = append(txs, tx)
 	}
 	return txs, nil
+}
+
+func (n *Network) GetUtxosByPkey(pkey [evote.PKEY_SIZE]byte) ([]*evote.UTXO, error) {
+	data, err := makeBinaryRequest(n.curHost, "/getUTXOByPubKey", pkey[:])
+	if err != nil {
+		return nil, err
+	}
+	utxosSize := binary.LittleEndian.Uint32(data[:evote.INT_32_SIZE])
+	offset := evote.INT_32_SIZE
+	utxos := make([]*evote.UTXO, 0)
+	for i := 0; i < int(utxosSize); i++ {
+		utxo := new(evote.UTXO)
+		retCode := utxo.FromBytes(data[offset : offset+evote.UTXO_SIZE])
+		if retCode != evote.OK {
+			fmt.Println("incorrect utxo from validator")
+			return nil, fmt.Errorf("incorrect utxo from validator")
+		}
+		utxos = append(utxos, utxo)
+		offset += evote.UTXO_SIZE
+	}
+	return utxos, nil
 }
