@@ -29,10 +29,15 @@
 
 ### Go
 При написании использовался go1.14 Linux/amd64
-Для запуска необходимо 
+Для запуска валидатора необходимо 
 1. настроить $GOPATH, [инструкция на офф сайте](https://golang.org/doc/gopath_code.html). 
 Если вкратце, то нужно, чтобы `GOPATH = ~/go`, проект лежал в `$GOPATH/src/GO_LOSOVANIE`,
 а криптолибы (см. пункт 2), лежали в `$GOPATH/src/go.cypherpunks.ru`.
 2. Поставить библиотеку [gogost](http://www.gogost.cypherpunks.ru/Download.html#Download).
 Из скачанного при установке архива нужно переместить папку `src/go.cypherpunks.ru` в `$GOPATH/src/go.cypherpunks.ru`.
 3. Поставить либу для работы с бд [pq](https://github.com/lib/pq) командой `go get github.com/lib/pq`.
+
+Для запуска клиента необходимо:
+1. Также, как и для запуска валидатора (см выше)
+2. Также, как и для запуска валидатора
+3. Поставить либу для создания cli [promptui](https://github.com/manifoldco/promptui) командой `go get github.com/manifoldco/promptui`.

@@ -1,6 +1,7 @@
-package main
+package client
 
 import (
+	"GO_LOSOVANIE/evote"
 	"flag"
 	"fmt"
 )
@@ -14,4 +15,9 @@ func main() {
 		fmt.Println("Usage: go run main.go -g=<path to global config> -l=<path to local config>")
 		return
 	}
+	gConf, keyPair, err := evote.LoadConfig(*pathToGlobalConf, *pathToKeyPair)
+	if err != nil {
+		panic(err)
+	}
+
 }
