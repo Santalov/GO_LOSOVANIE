@@ -37,30 +37,57 @@ type LocalConfig struct {
 }
 
 func LoadConfig(pathToGlobalConfig, pathToLocalConfig string) (*GlobalConfig, *LocalConfig, error) {
-	global, err := ioutil.ReadFile(pathToGlobalConfig)
-	if err != nil {
-		return nil, nil, err
+	gConf, err1 := LoadGlobalConfig(pathToGlobalConfig)
+	lConf, err2 := LoadLocalConfig(pathToLocalConfig)
+	if err1 != nil {
+		return nil, nil, err1
 	}
+	if err2 != nil {
+		return nil, nil, err2
+	}
+	return gConf, lConf, nil
+}
+
+func LoadLocalConfig(pathToLocalConfig string) (*LocalConfig, error) {
 	local, err := ioutil.ReadFile(pathToLocalConfig)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	var gConfRaw globalConfigRaw
 	var lConfRaw localConfigRaw
-	err = json.Unmarshal(global, &gConfRaw)
-	if err != nil {
-		return nil, nil, err
-	}
 	err = json.Unmarshal(local, &lConfRaw)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
+	}
+	var lConf LocalConfig
+	myPkey, err := hex.DecodeString(lConfRaw.Pkey)
+	if err != nil {
+		return nil, err
+	}
+	myPrv, err := hex.DecodeString(lConfRaw.Prv)
+	if err != nil {
+		return nil, err
+	}
+	copy(lConf.Pkey[:], myPkey)
+	lConf.Prv = myPrv
+	lConf.Addr = lConfRaw.Addr
+	return &lConf, nil
+}
+
+func LoadGlobalConfig(pathToGlobalConfig string) (*GlobalConfig, error) {
+	global, err := ioutil.ReadFile(pathToGlobalConfig)
+	if err != nil {
+		return nil, err
+	}
+	var gConfRaw globalConfigRaw
+	err = json.Unmarshal(global, &gConfRaw)
+	if err != nil {
+		return nil, err
 	}
 	var gConf GlobalConfig
-	var lConf LocalConfig
 	for _, validatorRaw := range gConfRaw.Validators {
 		pkey, err := hex.DecodeString(validatorRaw.Pkey)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		validator := &ValidatorNode{}
 		copy(validator.pkey[:], pkey)
@@ -70,16 +97,5 @@ func LoadConfig(pathToGlobalConfig, pathToLocalConfig string) (*GlobalConfig, *L
 		gConf.BlockVotingTime = gConfRaw.BlockVotingTime
 		gConf.JustWaitingTime = gConfRaw.JustWaitingTime
 	}
-	myPkey, err := hex.DecodeString(lConfRaw.Pkey)
-	if err != nil {
-		return nil, nil, err
-	}
-	myPrv, err := hex.DecodeString(lConfRaw.Prv)
-	if err != nil {
-		return nil, nil, err
-	}
-	copy(lConf.Pkey[:], myPkey)
-	lConf.Prv = myPrv
-	lConf.Addr = lConfRaw.Addr
-	return &gConf, &lConf, nil
+	return &gConf, nil
 }
