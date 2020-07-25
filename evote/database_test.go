@@ -14,30 +14,30 @@ func TestDatabase(t *testing.T) {
 		err := db.SaveNextBlock(&B_AND_H0)
 		assert.Nil(t, err)
 		blocksReceived, err := db.GetBlocksByHashes([][HASH_SIZE]byte{
-			B_AND_H0.hash,
+			B_AND_H0.Hash,
 		})
 		assert.Nil(t, err)
 		assert.ElementsMatch(t, []*BlocAndkHash{
 			&B_AND_H0,
 		}, blocksReceived)
-		assert.Equal(t, blocksReceived[0].hash, blockHash(blocksReceived[0].b))
-		assert.Equal(t, B_AND_H0.hash, blockHash(blocksReceived[0].b))
+		assert.Equal(t, blocksReceived[0].Hash, blockHash(blocksReceived[0].B))
+		assert.Equal(t, B_AND_H0.Hash, blockHash(blocksReceived[0].B))
 	})
 	t.Run("get_tx_by_id_0", func(t *testing.T) {
-		txid := BLOCK0.trans[0].hash
-		txsExpected := BLOCK0.trans // there is only one tx, which we will receive
+		txid := BLOCK0.Trans[0].Hash
+		txsExpected := BLOCK0.Trans // there is only one tx, which we will receive
 		txsReceived, err := db.GetTxsByHashes([][HASH_SIZE]byte{txid})
 		assert.Nil(t, err)
 		assert.Equal(t, txsExpected, txsReceived)
-		assert.Equal(t, txsExpected[0].hash, txHash(txsReceived[0].transaction))
+		assert.Equal(t, txsExpected[0].Hash, txHash(txsReceived[0].Transaction))
 	})
 	t.Run("get_tx_by_pkey_0", func(t *testing.T) {
-		pkey := BLOCK0.trans[0].transaction.outputs[0].pkeyTo
-		txsExpected := BLOCK0.trans
+		pkey := BLOCK0.Trans[0].Transaction.Outputs[0].PkeyTo
+		txsExpected := BLOCK0.Trans
 		txsReceived, err := db.GetTxsByPubKey(pkey)
 		assert.Nil(t, err)
 		assert.Equal(t, txsExpected, txsReceived)
-		assert.Equal(t, txsExpected[0].hash, txHash(txsReceived[0].transaction))
+		assert.Equal(t, txsExpected[0].Hash, txHash(txsReceived[0].Transaction))
 	})
 	t.Run("get_undefined_block_0", func(t *testing.T) {
 		hashes := [][HASH_SIZE]byte{
@@ -70,7 +70,7 @@ func TestDatabase(t *testing.T) {
 	})
 	t.Run("expect_duplicate_was_not_saved", func(t *testing.T) {
 		blocksReceived, err := db.GetBlocksByHashes([][HASH_SIZE]byte{
-			B_AND_H0.hash,
+			B_AND_H0.Hash,
 		})
 		assert.Nil(t, err)
 		assert.ElementsMatch(t, []*BlocAndkHash{
@@ -78,14 +78,14 @@ func TestDatabase(t *testing.T) {
 		}, blocksReceived)
 	})
 	t.Run("get_utxos_by_pkey_0", func(t *testing.T) {
-		pkey := BLOCK0.trans[0].transaction.outputs[0].pkeyTo
-		tx := BLOCK0.trans[0]
+		pkey := BLOCK0.Trans[0].Transaction.Outputs[0].PkeyTo
+		tx := BLOCK0.Trans[0]
 		utxosExpected := []*UTXO{
 			{
-				txId:   tx.hash,
-				index:  0,
-				value:  tx.transaction.outputs[0].value,
-				pkeyTo: pkey,
+				TxId:   tx.Hash,
+				Index:  0,
+				Value:  tx.Transaction.Outputs[0].Value,
+				PkeyTo: pkey,
 			},
 		}
 		utxosReceived, err := db.GetUTXOSByPkey(pkey)
@@ -93,17 +93,17 @@ func TestDatabase(t *testing.T) {
 		assert.Equal(t, utxosExpected, utxosReceived)
 	})
 	t.Run("get_utxos_by_txid_0", func(t *testing.T) {
-		pkey := BLOCK0.trans[0].transaction.outputs[0].pkeyTo
-		tx := BLOCK0.trans[0]
+		pkey := BLOCK0.Trans[0].Transaction.Outputs[0].PkeyTo
+		tx := BLOCK0.Trans[0]
 		utxosExpected := []*UTXO{
 			{
-				txId:   tx.hash,
-				index:  0,
-				value:  tx.transaction.outputs[0].value,
-				pkeyTo: pkey,
+				TxId:   tx.Hash,
+				Index:  0,
+				Value:  tx.Transaction.Outputs[0].Value,
+				PkeyTo: pkey,
 			},
 		}
-		utxosReceived, err := db.GetUTXOSByTxId(tx.hash)
+		utxosReceived, err := db.GetUTXOSByTxId(tx.Hash)
 		assert.Nil(t, err)
 		assert.Equal(t, utxosExpected, utxosReceived)
 	})
@@ -126,7 +126,7 @@ func TestDatabase(t *testing.T) {
 		blockReceived, err := db.GetBlockAfter(hash)
 		assert.Nil(t, err)
 		assert.Equal(t, &B_AND_H0, blockReceived)
-		assert.Equal(t, B_AND_H0.hash, blockHash(blockReceived.b))
+		assert.Equal(t, B_AND_H0.Hash, blockHash(blockReceived.B))
 	})
 	t.Run("get_undefined_first_block_0", func(t *testing.T) {
 		hash := [HASH_SIZE]byte{1, 2, 3} //несуществующий хеш
@@ -135,7 +135,7 @@ func TestDatabase(t *testing.T) {
 		assert.Nil(t, blockReceived)
 	})
 	t.Run("get_undefined_first_block_1", func(t *testing.T) {
-		hash := B_AND_H0.hash //хеш первого блока, а второго еще нет
+		hash := B_AND_H0.Hash //хеш первого блока, а второго еще нет
 		blockReceived, err := db.GetBlockAfter(hash)
 		assert.Nil(t, err)
 		assert.Nil(t, blockReceived)
@@ -144,33 +144,33 @@ func TestDatabase(t *testing.T) {
 		err := db.SaveNextBlock(&B_AND_H1)
 		assert.Nil(t, err)
 		blocksReceived, err := db.GetBlocksByHashes([][HASH_SIZE]byte{
-			B_AND_H1.hash,
+			B_AND_H1.Hash,
 		})
 		assert.Nil(t, err)
 		assert.ElementsMatch(t, []*BlocAndkHash{
 			&B_AND_H1,
 		}, blocksReceived)
-		assert.Equal(t, blocksReceived[0].hash, blockHash(blocksReceived[0].b))
-		assert.Equal(t, B_AND_H1.hash, blockHash(blocksReceived[0].b))
+		assert.Equal(t, blocksReceived[0].Hash, blockHash(blocksReceived[0].B))
+		assert.Equal(t, B_AND_H1.Hash, blockHash(blocksReceived[0].B))
 	})
 	t.Run("get_utxos_by_pkey_1", func(t *testing.T) {
-		tx0 := BLOCK1.trans[0]
-		output0 := tx0.transaction.outputs[0]
-		pkey := output0.pkeyTo
-		tx1 := BLOCK1.trans[1]
-		output1 := tx1.transaction.outputs[1]
+		tx0 := BLOCK1.Trans[0]
+		output0 := tx0.Transaction.Outputs[0]
+		pkey := output0.PkeyTo
+		tx1 := BLOCK1.Trans[1]
+		output1 := tx1.Transaction.Outputs[1]
 		utxosExpected := []*UTXO{
 			{
-				txId:   tx0.hash,
-				index:  0,
-				value:  output0.value,
-				pkeyTo: output0.pkeyTo,
+				TxId:   tx0.Hash,
+				Index:  0,
+				Value:  output0.Value,
+				PkeyTo: output0.PkeyTo,
 			},
 			{
-				txId:   tx1.hash,
-				index:  1,
-				value:  output1.value,
-				pkeyTo: output1.pkeyTo,
+				TxId:   tx1.Hash,
+				Index:  1,
+				Value:  output1.Value,
+				PkeyTo: output1.PkeyTo,
 			},
 		}
 		utxosReceived, err := db.GetUTXOSByPkey(pkey)
@@ -178,15 +178,15 @@ func TestDatabase(t *testing.T) {
 		assert.ElementsMatch(t, utxosExpected, utxosReceived)
 	})
 	t.Run("get_utxos_by_pkey_2", func(t *testing.T) {
-		tx := BLOCK1.trans[1]
-		output := tx.transaction.outputs[0]
-		pkey := output.pkeyTo
+		tx := BLOCK1.Trans[1]
+		output := tx.Transaction.Outputs[0]
+		pkey := output.PkeyTo
 		utxosExpected := []*UTXO{
 			{
-				txId:   tx.hash,
-				index:  0,
-				value:  output.value,
-				pkeyTo: pkey,
+				TxId:   tx.Hash,
+				Index:  0,
+				Value:  output.Value,
+				PkeyTo: pkey,
 			},
 		}
 		utxosReceived, err := db.GetUTXOSByPkey(pkey)
@@ -194,63 +194,63 @@ func TestDatabase(t *testing.T) {
 		assert.ElementsMatch(t, utxosExpected, utxosReceived)
 	})
 	t.Run("get_utxos_by_txid_1", func(t *testing.T) {
-		tx0 := BLOCK1.trans[0]
-		output0 := tx0.transaction.outputs[0]
+		tx0 := BLOCK1.Trans[0]
+		output0 := tx0.Transaction.Outputs[0]
 		utxosExpected := []*UTXO{
 			{
-				txId:   tx0.hash,
-				index:  0,
-				value:  output0.value,
-				pkeyTo: output0.pkeyTo,
+				TxId:   tx0.Hash,
+				Index:  0,
+				Value:  output0.Value,
+				PkeyTo: output0.PkeyTo,
 			},
 		}
-		utxosReceived, err := db.GetUTXOSByTxId(tx0.hash)
+		utxosReceived, err := db.GetUTXOSByTxId(tx0.Hash)
 		assert.Nil(t, err)
 		assert.Equal(t, utxosExpected, utxosReceived)
 	})
 	t.Run("get_utxos_by_txid_2", func(t *testing.T) {
-		tx1 := BLOCK1.trans[1]
-		output0 := tx1.transaction.outputs[0]
-		output1 := tx1.transaction.outputs[1]
+		tx1 := BLOCK1.Trans[1]
+		output0 := tx1.Transaction.Outputs[0]
+		output1 := tx1.Transaction.Outputs[1]
 		utxosExpected := []*UTXO{
 			{
-				txId:   tx1.hash,
-				index:  0,
-				value:  output0.value,
-				pkeyTo: output0.pkeyTo,
+				TxId:   tx1.Hash,
+				Index:  0,
+				Value:  output0.Value,
+				PkeyTo: output0.PkeyTo,
 			},
 			{
-				txId:   tx1.hash,
-				index:  1,
-				value:  output1.value,
-				pkeyTo: output1.pkeyTo,
+				TxId:   tx1.Hash,
+				Index:  1,
+				Value:  output1.Value,
+				PkeyTo: output1.PkeyTo,
 			},
 		}
-		utxosReceived, err := db.GetUTXOSByTxId(tx1.hash)
+		utxosReceived, err := db.GetUTXOSByTxId(tx1.Hash)
 		assert.Nil(t, err)
 		assert.ElementsMatch(t, utxosExpected, utxosReceived)
 	})
 	t.Run("get_txs_by_pkey_1", func(t *testing.T) {
-		pkey := BLOCK0.trans[0].transaction.outputs[0].pkeyTo
-		txsExpected := append(BLOCK0.trans, BLOCK1.trans...)
+		pkey := BLOCK0.Trans[0].Transaction.Outputs[0].PkeyTo
+		txsExpected := append(BLOCK0.Trans, BLOCK1.Trans...)
 		txsReceived, err := db.GetTxsByPubKey(pkey)
 		assert.Nil(t, err)
 		assert.ElementsMatch(t, txsExpected, txsReceived)
 	})
 	t.Run("get_undefined_utxos_by_txid_1", func(t *testing.T) {
-		tx := BLOCK0.trans[0]
+		tx := BLOCK0.Trans[0]
 		utxosExpected := make([]*UTXO, 0)
-		utxosReceived, err := db.GetUTXOSByTxId(tx.hash)
+		utxosReceived, err := db.GetUTXOSByTxId(tx.Hash)
 		assert.Nil(t, err)
 		assert.Equal(t, utxosExpected, utxosReceived)
 	})
 	t.Run("get_second_block", func(t *testing.T) {
-		block, err := db.GetBlockAfter(B_AND_H0.hash)
+		block, err := db.GetBlockAfter(B_AND_H0.Hash)
 		assert.Nil(t, err)
 		assert.Equal(t, &B_AND_H1, block)
 	})
 	t.Run("get_undefined_block_1", func(t *testing.T) {
-		block, err := db.GetBlockAfter(B_AND_H1.hash) // третьего блока еще нет
+		block, err := db.GetBlockAfter(B_AND_H1.Hash) // третьего блока еще нет
 		assert.Nil(t, err)
 		assert.Nil(t, block)
 	})
@@ -258,25 +258,25 @@ func TestDatabase(t *testing.T) {
 		err := db.SaveNextBlock(&B_AND_H2)
 		assert.Nil(t, err)
 		blocksReceived, err := db.GetBlocksByHashes([][HASH_SIZE]byte{
-			B_AND_H2.hash,
+			B_AND_H2.Hash,
 		})
 		assert.Nil(t, err)
 		assert.ElementsMatch(t, []*BlocAndkHash{
 			&B_AND_H2,
 		}, blocksReceived)
-		assert.Equal(t, blocksReceived[0].hash, blockHash(blocksReceived[0].b))
-		assert.Equal(t, B_AND_H2.hash, blockHash(blocksReceived[0].b))
+		assert.Equal(t, blocksReceived[0].Hash, blockHash(blocksReceived[0].B))
+		assert.Equal(t, B_AND_H2.Hash, blockHash(blocksReceived[0].B))
 	})
 	t.Run("get_txs_by_id_1", func(t *testing.T) {
 		hashes := [][HASH_SIZE]byte{
-			BLOCK1.trans[1].hash,
-			BLOCK2.trans[0].hash,
-			BLOCK2.trans[1].hash,
+			BLOCK1.Trans[1].Hash,
+			BLOCK2.Trans[0].Hash,
+			BLOCK2.Trans[1].Hash,
 		}
 		txsExpected := []TransAndHash{
-			BLOCK1.trans[1],
-			BLOCK2.trans[0],
-			BLOCK2.trans[1],
+			BLOCK1.Trans[1],
+			BLOCK2.Trans[0],
+			BLOCK2.Trans[1],
 		}
 		txsReceived, err := db.GetTxsByHashes(hashes)
 		assert.Nil(t, err)
@@ -284,8 +284,8 @@ func TestDatabase(t *testing.T) {
 	})
 	t.Run("get_blocks_by_hash", func(t *testing.T) {
 		hashes := [][HASH_SIZE]byte{
-			B_AND_H1.hash,
-			B_AND_H2.hash,
+			B_AND_H1.Hash,
+			B_AND_H2.Hash,
 		}
 		blocksExpected := []*BlocAndkHash{
 			&B_AND_H1,
@@ -297,8 +297,8 @@ func TestDatabase(t *testing.T) {
 	})
 	t.Run("get_blocks_by_hash_but_not_all_valid", func(t *testing.T) {
 		hashes := [][HASH_SIZE]byte{
-			B_AND_H0.hash,
-			B_AND_H2.hash,
+			B_AND_H0.Hash,
+			B_AND_H2.Hash,
 			ZERO_ARRAY_HASH, // блока с таким хешем нет
 			{1, 2, 32},      // с таким тоже
 		}
@@ -312,43 +312,43 @@ func TestDatabase(t *testing.T) {
 	})
 	t.Run("get_txs_by_hash_but_not_all_valid", func(t *testing.T) {
 		hashes := [][HASH_SIZE]byte{
-			BLOCK0.trans[0].hash,
-			BLOCK2.trans[0].hash,
+			BLOCK0.Trans[0].Hash,
+			BLOCK2.Trans[0].Hash,
 			ZERO_ARRAY_HASH, // транзы с таким хешем нет
 			{1, 3, 3, 7},    // с таким тоже
 		}
 		txsExpected := []TransAndHash{
-			BLOCK0.trans[0],
-			BLOCK2.trans[0],
+			BLOCK0.Trans[0],
+			BLOCK2.Trans[0],
 		}
 		txsReceived, err := db.GetTxsByHashes(hashes)
 		assert.Nil(t, err)
 		assert.ElementsMatch(t, txsExpected, txsReceived)
 	})
 	t.Run("get_undefined_utxos_by_pkey_1", func(t *testing.T) {
-		pkey := BLOCK0.trans[0].transaction.outputs[0].pkeyTo
+		pkey := BLOCK0.Trans[0].Transaction.Outputs[0].PkeyTo
 		utxosReceived, err := db.GetUTXOSByPkey(pkey)
 		assert.Nil(t, err)
 		assert.Empty(t, utxosReceived)
 	})
 	t.Run("get_utxos_by_pkey_3", func(t *testing.T) {
-		pkey := BLOCK2.trans[0].transaction.outputs[0].pkeyTo
-		tx0 := BLOCK1.trans[1]
-		output0 := tx0.transaction.outputs[0]
-		tx1 := BLOCK2.trans[0]
-		output1 := tx1.transaction.outputs[0]
+		pkey := BLOCK2.Trans[0].Transaction.Outputs[0].PkeyTo
+		tx0 := BLOCK1.Trans[1]
+		output0 := tx0.Transaction.Outputs[0]
+		tx1 := BLOCK2.Trans[0]
+		output1 := tx1.Transaction.Outputs[0]
 		utxosExpected := []*UTXO{
 			{
-				txId:   tx0.hash,
-				index:  0,
-				value:  output0.value,
-				pkeyTo: pkey,
+				TxId:   tx0.Hash,
+				Index:  0,
+				Value:  output0.Value,
+				PkeyTo: pkey,
 			},
 			{
-				txId:   tx1.hash,
-				index:  0,
-				value:  output1.value,
-				pkeyTo: pkey,
+				TxId:   tx1.Hash,
+				Index:  0,
+				Value:  output1.Value,
+				PkeyTo: pkey,
 			},
 		}
 		utxosReceived, err := db.GetUTXOSByPkey(pkey)
@@ -356,10 +356,10 @@ func TestDatabase(t *testing.T) {
 		assert.ElementsMatch(t, utxosExpected, utxosReceived)
 	})
 	t.Run("get_txs_by_pkey_2", func(t *testing.T) {
-		pkey := BLOCK0.trans[0].transaction.outputs[0].pkeyTo
-		txsExpected := append([]TransAndHash{}, BLOCK0.trans...)
-		txsExpected = append(txsExpected, BLOCK1.trans...)
-		txsExpected = append(txsExpected, BLOCK2.trans[1:]...)
+		pkey := BLOCK0.Trans[0].Transaction.Outputs[0].PkeyTo
+		txsExpected := append([]TransAndHash{}, BLOCK0.Trans...)
+		txsExpected = append(txsExpected, BLOCK1.Trans...)
+		txsExpected = append(txsExpected, BLOCK2.Trans[1:]...)
 		txsReceived, err := db.GetTxsByPubKey(pkey)
 		assert.Nil(t, err)
 		assert.ElementsMatch(t, txsExpected, txsReceived)
@@ -368,27 +368,27 @@ func TestDatabase(t *testing.T) {
 		err := db.SaveNextBlock(&B_AND_H3)
 		assert.Nil(t, err)
 		blocksReceived, err := db.GetBlocksByHashes([][HASH_SIZE]byte{
-			B_AND_H3.hash,
+			B_AND_H3.Hash,
 		})
 		assert.Nil(t, err)
 		assert.ElementsMatch(t, []*BlocAndkHash{
 			&B_AND_H3,
 		}, blocksReceived)
-		assert.Equal(t, blocksReceived[0].hash, blockHash(blocksReceived[0].b))
-		assert.Equal(t, B_AND_H3.hash, blockHash(blocksReceived[0].b))
+		assert.Equal(t, blocksReceived[0].Hash, blockHash(blocksReceived[0].B))
+		assert.Equal(t, B_AND_H3.Hash, blockHash(blocksReceived[0].B))
 	})
 	t.Run("insert_block_4_with_more_optional_fields", func(t *testing.T) {
 		err := db.SaveNextBlock(&B_AND_H4)
 		assert.Nil(t, err)
 		blocksReceived, err := db.GetBlocksByHashes([][HASH_SIZE]byte{
-			B_AND_H4.hash,
+			B_AND_H4.Hash,
 		})
 		assert.Nil(t, err)
 		assert.ElementsMatch(t, []*BlocAndkHash{
 			&B_AND_H4,
 		}, blocksReceived)
-		assert.Equal(t, blocksReceived[0].hash, blockHash(blocksReceived[0].b))
-		assert.Equal(t, B_AND_H4.hash, blockHash(blocksReceived[0].b))
+		assert.Equal(t, blocksReceived[0].Hash, blockHash(blocksReceived[0].B))
+		assert.Equal(t, B_AND_H4.Hash, blockHash(blocksReceived[0].B))
 	})
 	err = db.Close()
 	assert.Nil(t, err)

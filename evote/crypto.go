@@ -12,9 +12,9 @@ var curve = gost3410.CurveIdGostR34102001CryptoProAParamSet()
 var expCoff = big.NewInt(0).Div(big.NewInt(0).Add(curve.P, big.NewInt(1)), big.NewInt(4))
 
 type CryptoKeysData struct {
-	privateKey *gost3410.PrivateKey
-	publickKey *gost3410.PublicKey
-	pubKeyByte [PKEY_SIZE]byte
+	PrivateKey *gost3410.PrivateKey
+	PublickKey *gost3410.PublicKey
+	PubkeyByte [PKEY_SIZE]byte
 }
 
 func Hash(data []byte) []byte {
@@ -24,20 +24,20 @@ func Hash(data []byte) []byte {
 }
 
 func (keys *CryptoKeysData) SetupKeys(prv []byte) {
-	keys.privateKey, _ = gost3410.NewPrivateKey(curve, gost3410.Mode2001, prv)
-	keys.publickKey, _ = keys.privateKey.PublicKey()
-	var pkeyX = keys.publickKey.Raw()[:32]
+	keys.PrivateKey, _ = gost3410.NewPrivateKey(curve, gost3410.Mode2001, prv)
+	keys.PublickKey, _ = keys.PrivateKey.PublicKey()
+	var pkeyX = keys.PublickKey.Raw()[:32]
 	var tmp = make([]byte, 1)
-	if big.NewInt(0).Mod(keys.publickKey.Y, big.NewInt(2)).Uint64() == 0 {
+	if big.NewInt(0).Mod(keys.PublickKey.Y, big.NewInt(2)).Uint64() == 0 {
 		tmp[0] = 0x02
 	} else {
 		tmp[0] = 0x03
 	}
-	copy(keys.pubKeyByte[:], append(tmp, pkeyX[:]...))
+	copy(keys.PubkeyByte[:], append(tmp, pkeyX[:]...))
 }
 
 func (keys *CryptoKeysData) Sign(data []byte) []byte {
-	var res, err = keys.privateKey.SignDigest(data, rand.Reader)
+	var res, err = keys.PrivateKey.SignDigest(data, rand.Reader)
 	if err != nil {
 		fmt.Println("sign error", err)
 	}
@@ -83,7 +83,7 @@ func VerifyData(data, signature []byte, pkey [PKEY_SIZE]byte) bool {
 	key.Mode = gost3410.Mode2001
 	key.X = x
 	key.Y = y
-	digest := make([]byte, len(data) + SIG_SIZE)
+	digest := make([]byte, len(data)+SIG_SIZE)
 	copy(digest[:len(data)], data)
 	copy(digest[len(data):], ZERO_ARRAY_SIG[:])
 	res, err := key.VerifyDigest(digest, signature)

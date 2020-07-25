@@ -16,7 +16,7 @@ import (
 // Поэтому необязтельные поля с нулевыми значениями преобразуются в nil, который бд преобразует в null
 // Еще одна фича, у массиовов нет значения nil, поэтому они сканируются как срезы
 
-// Transaction.typeVote и Transaction.typeValue не преобразуются к nil, так как на них не завязана ссылочная целостность
+// Transaction.TypeVote и Transaction.TypeValue не преобразуются к nil, так как на них не завязана ссылочная целостность
 // и преобразование к nil добавляет дополнительную сложность
 
 func hashToSlice(v [HASH_SIZE]byte) interface{} {
@@ -54,7 +54,7 @@ func getTxInputsAndOutputs(dbTx *sql.Tx, txHash [HASH_SIZE]byte) ([]TransactionI
 	var outputs []TransactionOutput
 	inputRows, err := dbTx.Query(
 		`SELECT prevtxid, outputindex 
-		FROM input WHERE txid = $1 ORDER BY index`,
+		FROM input WHERE txid = $1 ORDER BY Index`,
 		txHash[:],
 	)
 	if err != nil {
@@ -63,11 +63,11 @@ func getTxInputsAndOutputs(dbTx *sql.Tx, txHash [HASH_SIZE]byte) ([]TransactionI
 	for inputRows.Next() {
 		var input TransactionInput
 		var prevId []byte
-		err := inputRows.Scan(&prevId, &input.outIndex)
+		err := inputRows.Scan(&prevId, &input.OutIndex)
 		if err != nil {
 			return nil, nil, err
 		}
-		copy(input.prevId[:], prevId)
+		copy(input.PrevId[:], prevId)
 		inputs = append(inputs, input)
 	}
 	err = inputRows.Close()
@@ -75,8 +75,8 @@ func getTxInputsAndOutputs(dbTx *sql.Tx, txHash [HASH_SIZE]byte) ([]TransactionI
 		return nil, nil, err
 	}
 	outputRows, err := dbTx.Query(
-		`SELECT value, publickeyto 
-		FROM output WHERE txid = $1 ORDER BY index`,
+		`SELECT Value, publickeyto 
+		FROM output WHERE txid = $1 ORDER BY Index`,
 		txHash[:],
 	)
 	if err != nil {
@@ -85,11 +85,11 @@ func getTxInputsAndOutputs(dbTx *sql.Tx, txHash [HASH_SIZE]byte) ([]TransactionI
 	for outputRows.Next() {
 		var output TransactionOutput
 		var pkey []byte
-		err := outputRows.Scan(&output.value, &pkey)
+		err := outputRows.Scan(&output.Value, &pkey)
 		if err != nil {
 			return nil, nil, err
 		}
-		copy(output.pkeyTo[:], pkey)
+		copy(output.PkeyTo[:], pkey)
 		outputs = append(outputs, output)
 	}
 	err = outputRows.Close()
@@ -99,29 +99,29 @@ func getTxInputsAndOutputs(dbTx *sql.Tx, txHash [HASH_SIZE]byte) ([]TransactionI
 	return inputs, outputs, nil
 }
 
-// rows must be like: txid, typevalue, typevote, duration, hashlink, signature
+// rows must be like: txid, typevalue, typevote, Duration, hashlink, Signature
 // функция не делает RollBack при ошибке
 func scanTxs(txRows *sql.Rows, dbTx *sql.Tx) ([]TransAndHash, error) {
 	txs := make([]TransAndHash, 0)
 	for txRows.Next() {
 		var typeValue, hashLink, hash, signature []byte
 		var txAndHash TransAndHash
-		txAndHash.transaction = new(Transaction)
+		txAndHash.Transaction = new(Transaction)
 		err := txRows.Scan(
 			&hash,
 			&typeValue,
-			&txAndHash.transaction.typeVote,
-			&txAndHash.transaction.duration,
+			&txAndHash.Transaction.TypeVote,
+			&txAndHash.Transaction.Duration,
 			&hashLink,
 			&signature,
 		)
 		if err != nil {
 			return nil, err
 		}
-		txAndHash.transaction.typeValue = sliceToHash(typeValue)
-		txAndHash.transaction.hashLink = sliceToHash(hashLink)
-		copy(txAndHash.hash[:], hash)
-		copy(txAndHash.transaction.signature[:], signature)
+		txAndHash.Transaction.TypeValue = sliceToHash(typeValue)
+		txAndHash.Transaction.HashLink = sliceToHash(hashLink)
+		copy(txAndHash.Hash[:], hash)
+		copy(txAndHash.Transaction.Signature[:], signature)
 		txs = append(txs, txAndHash)
 	}
 	err := txRows.Close()
@@ -129,13 +129,13 @@ func scanTxs(txRows *sql.Rows, dbTx *sql.Tx) ([]TransAndHash, error) {
 		return nil, err
 	}
 	for _, txAndHash := range txs {
-		tx := txAndHash.transaction
-		tx.inputs, tx.outputs, err = getTxInputsAndOutputs(dbTx, txAndHash.hash)
+		tx := txAndHash.Transaction
+		tx.Inputs, tx.Outputs, err = getTxInputsAndOutputs(dbTx, txAndHash.Hash)
 		if err != nil {
 			return nil, err
 		}
-		tx.inputSize = uint32(len(tx.inputs))
-		tx.outputSize = uint32(len(tx.outputs))
+		tx.InputSize = uint32(len(tx.Inputs))
+		tx.OutputSize = uint32(len(tx.Outputs))
 	}
 	return txs, nil
 }
@@ -161,56 +161,56 @@ func (d *Database) SaveNextBlock(block *BlocAndkHash) error {
 		return err
 	}
 	_, err = dbTx.Exec(
-		`INSERT INTO block (blockHash, prevBlockHash, merkleTree, timestamp) VALUES ($1, $2, $3, $4)`,
-		block.hash[:],
-		hashToSlice(block.b.prevBlockHash),
-		block.b.merkleTree[:],
-		block.b.timestamp,
+		`INSERT INTO block (blockHash, PrevBlockHash, MerkleTree, Timestamp) VALUES ($1, $2, $3, $4)`,
+		block.Hash[:],
+		hashToSlice(block.B.PrevBlockHash),
+		block.B.MerkleTree[:],
+		block.B.Timestamp,
 	)
 	if err != nil {
 		_ = dbTx.Rollback()
 		return err
 	}
-	for i, txAndHash := range block.b.trans {
-		txId := txAndHash.hash
-		tx := txAndHash.transaction
+	for i, txAndHash := range block.B.Trans {
+		txId := txAndHash.Hash
+		tx := txAndHash.Transaction
 		_, err = dbTx.Exec(
 			`INSERT INTO 
-			transaction(txid, index, typevalue, typevote, duration, hashlink, signature, blockhash) 
+			Transaction(txid, Index, typevalue, typevote, Duration, hashlink, Signature, blockhash) 
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
 			txId[:],
 			i,
-			hashToSlice(tx.typeValue),
-			tx.typeVote,
-			tx.duration,
-			hashToSlice(tx.hashLink),
-			tx.signature[:],
-			block.hash[:],
+			hashToSlice(tx.TypeValue),
+			tx.TypeVote,
+			tx.Duration,
+			hashToSlice(tx.HashLink),
+			tx.Signature[:],
+			block.Hash[:],
 		)
 		if err != nil {
 			_ = dbTx.Rollback()
 			return err
 		}
-		for inputIndex, input := range tx.inputs {
+		for inputIndex, input := range tx.Inputs {
 			_, err = dbTx.Exec(
-				`INSERT INTO input(txid, index, prevtxid, outputindex) VALUES ($1, $2, $3, $4)`,
+				`INSERT INTO input(txid, Index, prevtxid, outputindex) VALUES ($1, $2, $3, $4)`,
 				txId[:],
 				inputIndex,
-				input.prevId[:],
-				input.outIndex,
+				input.PrevId[:],
+				input.OutIndex,
 			)
 			if err != nil {
 				_ = dbTx.Rollback()
 				return err
 			}
 		}
-		for outputIndex, output := range tx.outputs {
+		for outputIndex, output := range tx.Outputs {
 			_, err = dbTx.Exec(
-				`INSERT INTO output(txid, index, value, publickeyto) VALUES ($1, $2, $3, $4)`,
+				`INSERT INTO output(txid, Index, Value, publickeyto) VALUES ($1, $2, $3, $4)`,
 				txId[:],
 				outputIndex,
-				output.value,
-				output.pkeyTo[:],
+				output.Value,
+				output.PkeyTo[:],
 			)
 			if err != nil {
 				_ = dbTx.Rollback()
@@ -233,7 +233,7 @@ func (d *Database) GetBlocksByHashes(blockHashes [][HASH_SIZE]byte) ([]*BlocAndk
 	if err != nil {
 		return nil, err
 	}
-	blocksQuery := "SELECT block.blockhash, block.prevBlockHash, block.merkletree, block.timestamp " +
+	blocksQuery := "SELECT block.blockhash, block.PrevBlockHash, block.merkletree, block.Timestamp " +
 		"FROM block WHERE block.blockhash in (" + buildInLookup(1, len(blockHashes)+1) + ")"
 	blockQueryArgs := make([]interface{}, len(blockHashes))
 	for i := range blockHashes {
@@ -248,17 +248,17 @@ func (d *Database) GetBlocksByHashes(blockHashes [][HASH_SIZE]byte) ([]*BlocAndk
 	for blockRows.Next() {
 		blockAndHash := new(BlocAndkHash)
 		b := new(Block)
-		blockAndHash.b = b
+		blockAndHash.B = b
 		// создание срезов постгри не поддерживает массивы
 		var hash, prevBlockHash, merkleTree []byte
-		err := blockRows.Scan(&hash, &prevBlockHash, &merkleTree, &b.timestamp)
+		err := blockRows.Scan(&hash, &prevBlockHash, &merkleTree, &b.Timestamp)
 		if err != nil {
 			_ = dbTx.Rollback()
 			return nil, err
 		}
-		copy(blockAndHash.hash[:], hash)
-		b.prevBlockHash = sliceToHash(prevBlockHash)
-		copy(b.merkleTree[:], merkleTree)
+		copy(blockAndHash.Hash[:], hash)
+		b.PrevBlockHash = sliceToHash(prevBlockHash)
+		copy(b.MerkleTree[:], merkleTree)
 		blocks = append(blocks, blockAndHash)
 	}
 	err = blockRows.Close()
@@ -268,11 +268,11 @@ func (d *Database) GetBlocksByHashes(blockHashes [][HASH_SIZE]byte) ([]*BlocAndk
 	}
 
 	for _, blockAndHash := range blocks {
-		b := blockAndHash.b
+		b := blockAndHash.B
 		txRows, err := dbTx.Query(
-			`SELECT txid, typevalue, typevote, duration, hashlink, signature 
-			FROM transaction WHERE transaction.blockhash = $1 ORDER BY transaction.index`,
-			blockAndHash.hash[:],
+			`SELECT txid, typevalue, typevote, Duration, hashlink, Signature 
+			FROM Transaction WHERE Transaction.blockhash = $1 ORDER BY Transaction.Index`,
+			blockAndHash.Hash[:],
 		)
 		if err != nil {
 			_ = dbTx.Rollback()
@@ -283,8 +283,8 @@ func (d *Database) GetBlocksByHashes(blockHashes [][HASH_SIZE]byte) ([]*BlocAndk
 			_ = dbTx.Rollback()
 			return nil, err
 		}
-		b.trans = txs
-		b.transSize = uint32(len(txs))
+		b.Trans = txs
+		b.TransSize = uint32(len(txs))
 	}
 
 	err = dbTx.Commit()
@@ -303,7 +303,7 @@ func (d *Database) GetTxByHash(hash [HASH_SIZE]byte) (*Transaction, error) {
 	if len(transAndHash) < 1 {
 		return nil, nil
 	} else if len(transAndHash) == 1 {
-		return transAndHash[0].transaction, nil
+		return transAndHash[0].Transaction, nil
 	} else {
 		panic("got too much transactions")
 	}
@@ -316,8 +316,8 @@ func (d *Database) GetTxsByHashes(txHashes [][HASH_SIZE]byte) ([]TransAndHash, e
 	if err != nil {
 		return nil, err
 	}
-	txQuery := "SELECT txid, typevalue, typevote, duration, hashLink, signature " +
-		"FROM transaction WHERE transaction.txid in (" + buildInLookup(1, len(txHashes)+1) + ")"
+	txQuery := "SELECT txid, typevalue, typevote, Duration, HashLink, Signature " +
+		"FROM Transaction WHERE Transaction.txid in (" + buildInLookup(1, len(txHashes)+1) + ")"
 	txQueryArgs := make([]interface{}, len(txHashes))
 	for i := range txHashes {
 		txQueryArgs[i] = txHashes[i][:]
@@ -346,16 +346,16 @@ func (d *Database) GetTxsByPubKey(pkey [PKEY_SIZE]byte) ([]TransAndHash, error) 
 		return nil, err
 	}
 	txRows, err := dbTx.Query(
-		`SELECT txid, typevalue, typevote, duration, hashLink, signature 
-		FROM transaction 
+		`SELECT txid, typevalue, typevote, Duration, HashLink, Signature 
+		FROM Transaction 
 		WHERE EXISTS(
 	   		SELECT * FROM output 
-	   		WHERE output.txid = transaction.txid and output.publickeyto = $1
+	   		WHERE output.txid = Transaction.txid and output.publickeyto = $1
 		) 
 		union 
-		SELECT txid, typevalue, typevote, duration, hashLink, signature 
-		FROM transaction 
-		WHERE transaction.txid IN (
+		SELECT txid, typevalue, typevote, Duration, HashLink, Signature 
+		FROM Transaction 
+		WHERE Transaction.txid IN (
 	   		SELECT isspentbytx from output 
 	   		WHERE output.publickeyto = $1 
 		)`,
@@ -392,13 +392,13 @@ func (d *Database) getUTXOS(sqlQuery string, params []interface{}) ([]*UTXO, err
 	for utxosRows.Next() {
 		var txid, pkeyTo []byte
 		utxo := new(UTXO)
-		err := utxosRows.Scan(&txid, &utxo.index, &utxo.value, &pkeyTo)
+		err := utxosRows.Scan(&txid, &utxo.Index, &utxo.Value, &pkeyTo)
 		if err != nil {
 			_ = dbTx.Rollback()
 			return nil, err
 		}
-		copy(utxo.txId[:], txid)
-		copy(utxo.pkeyTo[:], pkeyTo)
+		copy(utxo.TxId[:], txid)
+		copy(utxo.PkeyTo[:], pkeyTo)
 		utxos = append(utxos, utxo)
 	}
 	err = utxosRows.Close()
@@ -416,7 +416,7 @@ func (d *Database) getUTXOS(sqlQuery string, params []interface{}) ([]*UTXO, err
 
 func (d *Database) GetUTXOSByPkey(pkey [PKEY_SIZE]byte) ([]*UTXO, error) {
 	return d.getUTXOS(
-		`SELECT txid, index, value, publicKeyTo from output 
+		`SELECT txid, Index, Value, publicKeyTo from output 
 			WHERE publickeyto = $1 and isspentbytx is null`,
 		[]interface{}{pkey[:]},
 	)
@@ -424,7 +424,7 @@ func (d *Database) GetUTXOSByPkey(pkey [PKEY_SIZE]byte) ([]*UTXO, error) {
 
 func (d *Database) GetUTXOSByTxId(txid [HASH_SIZE]byte) ([]*UTXO, error) {
 	return d.getUTXOS(
-		`SELECT txid, index, value, publicKeyTo from output 
+		`SELECT txid, Index, Value, publicKeyTo from output 
 			WHERE txid = $1 and isspentbytx is null`,
 		[]interface{}{txid[:]},
 	)
@@ -439,15 +439,15 @@ func (d *Database) GetBlockAfter(blockHash [HASH_SIZE]byte) (*BlocAndkHash, erro
 	var blockRow *sql.Rows
 	if blockHash != ZERO_ARRAY_HASH {
 		blockRow, err = dbTx.Query(
-			`SELECT block.blockhash, block.prevBlockHash, block.merkletree, block.timestamp 
-			FROM block WHERE block.prevBlockHash = $1`,
+			`SELECT block.blockhash, block.PrevBlockHash, block.merkletree, block.Timestamp 
+			FROM block WHERE block.PrevBlockHash = $1`,
 			blockHash[:],
 		)
 	} else {
 		// получение первого блока
 		blockRow, err = dbTx.Query(
-			`SELECT block.blockhash, block.prevBlockHash, block.merkletree, block.timestamp 
-			FROM block WHERE block.prevBlockHash IS NULL`,
+			`SELECT block.blockhash, block.PrevBlockHash, block.merkletree, block.Timestamp 
+			FROM block WHERE block.PrevBlockHash IS NULL`,
 		)
 	}
 	if err != nil {
@@ -456,17 +456,17 @@ func (d *Database) GetBlockAfter(blockHash [HASH_SIZE]byte) (*BlocAndkHash, erro
 	}
 	blockAndHash := new(BlocAndkHash)
 	b := new(Block)
-	blockAndHash.b = b
+	blockAndHash.B = b
 	if blockRow.Next() {
 		var hash, prevBlockHash, merkleTree []byte
-		err := blockRow.Scan(&hash, &prevBlockHash, &merkleTree, &b.timestamp)
+		err := blockRow.Scan(&hash, &prevBlockHash, &merkleTree, &b.Timestamp)
 		if err != nil {
 			_ = dbTx.Rollback()
 			return nil, err
 		}
-		copy(blockAndHash.hash[:], hash)
-		b.prevBlockHash = sliceToHash(prevBlockHash)
-		copy(b.merkleTree[:], merkleTree)
+		copy(blockAndHash.Hash[:], hash)
+		b.PrevBlockHash = sliceToHash(prevBlockHash)
+		copy(b.MerkleTree[:], merkleTree)
 	} else {
 		_ = dbTx.Commit()
 		return nil, nil
@@ -477,9 +477,9 @@ func (d *Database) GetBlockAfter(blockHash [HASH_SIZE]byte) (*BlocAndkHash, erro
 		return nil, err
 	}
 	txRows, err := dbTx.Query(
-		`SELECT txid, typevalue, typevote, duration, hashlink, signature 
-			FROM transaction WHERE transaction.blockhash = $1 ORDER BY transaction.index`,
-		blockAndHash.hash[:],
+		`SELECT txid, typevalue, typevote, Duration, hashlink, Signature 
+			FROM Transaction WHERE Transaction.blockhash = $1 ORDER BY Transaction.Index`,
+		blockAndHash.Hash[:],
 	)
 	if err != nil {
 		_ = dbTx.Rollback()
@@ -495,8 +495,8 @@ func (d *Database) GetBlockAfter(blockHash [HASH_SIZE]byte) (*BlocAndkHash, erro
 		_ = dbTx.Rollback()
 		return nil, err
 	}
-	b.trans = txs
-	b.transSize = uint32(len(txs))
+	b.Trans = txs
+	b.TransSize = uint32(len(txs))
 	err = dbTx.Commit()
 	if err != nil {
 		_ = dbTx.Rollback()

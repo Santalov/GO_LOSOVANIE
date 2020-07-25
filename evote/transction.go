@@ -10,90 +10,90 @@ func SearchTrans(prevId [HASH_SIZE]byte) *Transaction {
 }
 
 type TransAndHash struct {
-	hash        [HASH_SIZE]byte // 32 bytes
-	transaction *Transaction
+	Hash        [HASH_SIZE]byte // 32 bytes
+	Transaction *Transaction
 }
 
 type TransactionInput struct {
-	prevId   [HASH_SIZE]byte
-	outIndex uint32
+	PrevId   [HASH_SIZE]byte
+	OutIndex uint32
 }
 
 type TransactionOutput struct {
-	value  uint32
-	pkeyTo [PKEY_SIZE]byte
+	Value  uint32
+	PkeyTo [PKEY_SIZE]byte
 }
 
 type Transaction struct {
-	inputSize  uint32
-	inputs     []TransactionInput
-	outputSize uint32
-	outputs    []TransactionOutput
-	typeValue  [HASH_SIZE]byte // необязательное поле
-	typeVote   uint32          // необязательное поле, в первой транзе в блоке (которая создает деньги) здесь номер блока
-	duration   uint32          // необязательное поле
-	hashLink   [HASH_SIZE]byte // необязательное поле
-	signature  [SIG_SIZE]byte
+	InputSize  uint32
+	Inputs     []TransactionInput
+	OutputSize uint32
+	Outputs    []TransactionOutput
+	TypeValue  [HASH_SIZE]byte // необязательное поле
+	TypeVote   uint32          // необязательное поле, в первой транзе в блоке (которая создает деньги) здесь номер блока
+	Duration   uint32          // необязательное поле
+	HashLink   [HASH_SIZE]byte // необязательное поле
+	Signature  [SIG_SIZE]byte
 }
 
 type UTXO struct {
-	txId   [HASH_SIZE]byte // хеш транзы, из которой взят выход
-	index  uint32          // номер выхода в массиве выходов
-	value  uint32
-	pkeyTo [PKEY_SIZE]byte
+	TxId   [HASH_SIZE]byte // хеш транзы, из которой взят выход
+	Index  uint32          // номер выхода в массиве выходов
+	Value  uint32
+	PkeyTo [PKEY_SIZE]byte
 }
 
 func (t *TransactionInput) ToBytes() []byte {
 	data := make([]byte, TRANS_INPUT_SIZE)
-	copy(data[:HASH_SIZE], t.prevId[:])
-	binary.LittleEndian.PutUint32(data[HASH_SIZE:], t.outIndex)
+	copy(data[:HASH_SIZE], t.PrevId[:])
+	binary.LittleEndian.PutUint32(data[HASH_SIZE:], t.OutIndex)
 	return data
 }
 
 func (t *TransactionInput) FromBytes(data []byte) {
-	copy(t.prevId[:], data[:HASH_SIZE])
-	t.outIndex = binary.LittleEndian.Uint32(data[HASH_SIZE:])
+	copy(t.PrevId[:], data[:HASH_SIZE])
+	t.OutIndex = binary.LittleEndian.Uint32(data[HASH_SIZE:])
 }
 
 func (t *TransactionOutput) ToBytes() []byte {
 	data := make([]byte, TRANS_OUTPUT_SIZE)
-	binary.LittleEndian.PutUint32(data[:INT_32_SIZE], t.value)
-	copy(data[INT_32_SIZE:], t.pkeyTo[:])
+	binary.LittleEndian.PutUint32(data[:INT_32_SIZE], t.Value)
+	copy(data[INT_32_SIZE:], t.PkeyTo[:])
 	return data
 }
 
 func (t *TransactionOutput) FromBytes(data []byte) {
-	t.value = binary.LittleEndian.Uint32(data[:INT_32_SIZE])
-	copy(t.pkeyTo[:], data[INT_32_SIZE:])
+	t.Value = binary.LittleEndian.Uint32(data[:INT_32_SIZE])
+	copy(t.PkeyTo[:], data[INT_32_SIZE:])
 }
 
 func (t *Transaction) ToBytes() []byte {
 	var size uint32 = MIN_TRANS_SIZE - TRANS_OUTPUT_SIZE
-	size += TRANS_OUTPUT_SIZE * t.outputSize
-	size += TRANS_INPUT_SIZE * t.inputSize
+	size += TRANS_OUTPUT_SIZE * t.OutputSize
+	size += TRANS_INPUT_SIZE * t.InputSize
 	data := make([]byte, size)
-	binary.LittleEndian.PutUint32(data[:INT_32_SIZE], t.inputSize)
+	binary.LittleEndian.PutUint32(data[:INT_32_SIZE], t.InputSize)
 	var i uint32 = 0
 	var offset uint32 = INT_32_SIZE
-	for i = 0; i < t.inputSize; i++ {
-		copy(data[offset:offset+TRANS_INPUT_SIZE], t.inputs[i].ToBytes())
+	for i = 0; i < t.InputSize; i++ {
+		copy(data[offset:offset+TRANS_INPUT_SIZE], t.Inputs[i].ToBytes())
 		offset += TRANS_INPUT_SIZE
 	}
-	binary.LittleEndian.PutUint32(data[offset:offset+INT_32_SIZE], t.outputSize)
+	binary.LittleEndian.PutUint32(data[offset:offset+INT_32_SIZE], t.OutputSize)
 	offset += INT_32_SIZE
-	for i = 0; i < t.outputSize; i++ {
-		copy(data[offset:offset+TRANS_OUTPUT_SIZE], t.outputs[i].ToBytes())
+	for i = 0; i < t.OutputSize; i++ {
+		copy(data[offset:offset+TRANS_OUTPUT_SIZE], t.Outputs[i].ToBytes())
 		offset += TRANS_OUTPUT_SIZE
 	}
-	copy(data[offset:offset+HASH_SIZE], t.typeValue[:])
+	copy(data[offset:offset+HASH_SIZE], t.TypeValue[:])
 	offset += HASH_SIZE
-	binary.LittleEndian.PutUint32(data[offset:offset+INT_32_SIZE], t.typeVote)
+	binary.LittleEndian.PutUint32(data[offset:offset+INT_32_SIZE], t.TypeVote)
 	offset += INT_32_SIZE
-	binary.LittleEndian.PutUint32(data[offset:offset+INT_32_SIZE], t.duration)
+	binary.LittleEndian.PutUint32(data[offset:offset+INT_32_SIZE], t.Duration)
 	offset += INT_32_SIZE
-	copy(data[offset:offset+HASH_SIZE], t.hashLink[:])
+	copy(data[offset:offset+HASH_SIZE], t.HashLink[:])
 	offset += HASH_SIZE
-	copy(data[offset:offset+SIG_SIZE], t.signature[:])
+	copy(data[offset:offset+SIG_SIZE], t.Signature[:])
 	return data
 }
 
@@ -103,40 +103,40 @@ func (t *Transaction) FromBytes(data []byte) int {
 		return ERR_TRANS_SIZE
 	}
 	size -= TRANS_OUTPUT_SIZE
-	t.inputSize = binary.LittleEndian.Uint32(data[:INT_32_SIZE])
-	size += int(t.inputSize * TRANS_INPUT_SIZE)
+	t.InputSize = binary.LittleEndian.Uint32(data[:INT_32_SIZE])
+	size += int(t.InputSize * TRANS_INPUT_SIZE)
 	var offset uint32 = INT_32_SIZE
 	var i uint32
-	t.inputs = make([]TransactionInput, t.inputSize)
+	t.Inputs = make([]TransactionInput, t.InputSize)
 	if len(data) < size {
 		return ERR_TRANS_SIZE
 	}
-	for i = 0; i < t.inputSize; i++ {
-		t.inputs[i].FromBytes(data[offset : offset+TRANS_INPUT_SIZE])
+	for i = 0; i < t.InputSize; i++ {
+		t.Inputs[i].FromBytes(data[offset : offset+TRANS_INPUT_SIZE])
 		offset += TRANS_INPUT_SIZE
 	}
 
-	t.outputSize = binary.LittleEndian.Uint32(data[offset : offset+INT_32_SIZE])
-	size += int(t.outputSize * TRANS_OUTPUT_SIZE)
+	t.OutputSize = binary.LittleEndian.Uint32(data[offset : offset+INT_32_SIZE])
+	size += int(t.OutputSize * TRANS_OUTPUT_SIZE)
 	offset += INT_32_SIZE
-	t.outputs = make([]TransactionOutput, t.outputSize)
+	t.Outputs = make([]TransactionOutput, t.OutputSize)
 	if len(data) < size {
 		return ERR_TRANS_SIZE
 	}
-	for i = 0; i < t.outputSize; i++ {
-		t.outputs[i].FromBytes(data[offset : offset+TRANS_OUTPUT_SIZE])
+	for i = 0; i < t.OutputSize; i++ {
+		t.Outputs[i].FromBytes(data[offset : offset+TRANS_OUTPUT_SIZE])
 		offset += TRANS_OUTPUT_SIZE
 	}
 
-	copy(t.typeValue[:], data[offset:offset+HASH_SIZE])
+	copy(t.TypeValue[:], data[offset:offset+HASH_SIZE])
 	offset += HASH_SIZE
-	t.typeVote = binary.LittleEndian.Uint32(data[offset : offset+INT_32_SIZE])
+	t.TypeVote = binary.LittleEndian.Uint32(data[offset : offset+INT_32_SIZE])
 	offset += INT_32_SIZE
-	t.duration = binary.LittleEndian.Uint32(data[offset : offset+INT_32_SIZE])
+	t.Duration = binary.LittleEndian.Uint32(data[offset : offset+INT_32_SIZE])
 	offset += INT_32_SIZE
-	copy(t.hashLink[:], data[offset:offset+HASH_SIZE])
+	copy(t.HashLink[:], data[offset:offset+HASH_SIZE])
 	offset += HASH_SIZE
-	copy(t.signature[:], data[offset:offset+SIG_SIZE])
+	copy(t.Signature[:], data[offset:offset+SIG_SIZE])
 	return size
 }
 
@@ -145,42 +145,42 @@ func (t *Transaction) Verify(data []byte, db *Database) ([]byte, int) {
 	if transSize == ERR_TRANS_SIZE {
 		return nil, ERR_TRANS_SIZE
 	}
-	if t.outputSize == 0 || t.inputSize == 0 {
+	if t.OutputSize == 0 || t.InputSize == 0 {
 		return nil, ERR_TRANS_VERIFY
 	}
-	var special = t.outputs[0].pkeyTo == SPECIAL_PKEY
-	var inputTrans = t.inputs[0]
-	oldTrans, _ := db.GetTxByHash(inputTrans.prevId)
+	var special = t.Outputs[0].PkeyTo == SPECIAL_PKEY
+	var inputTrans = t.Inputs[0]
+	oldTrans, _ := db.GetTxByHash(inputTrans.PrevId)
 	if oldTrans == nil {
 		return nil, ERR_TRANS_VERIFY
 	}
-	var outIndex = inputTrans.outIndex
-	var pkey = oldTrans.outputs[outIndex].pkeyTo
+	var outIndex = inputTrans.OutIndex
+	var pkey = oldTrans.Outputs[outIndex].PkeyTo
 	var oldValSum uint32 = 0
 	var thisValSum uint32 = 0
-	for _, inputTrans := range t.inputs {
-		oldTrans, _ = db.GetTxByHash(inputTrans.prevId)
-		outIndex = inputTrans.outIndex
-		if oldTrans == nil || oldTrans.outputs[outIndex].pkeyTo != pkey ||
-			t.typeVote != oldTrans.typeVote ||
-			t.duration != oldTrans.duration {
+	for _, inputTrans := range t.Inputs {
+		oldTrans, _ = db.GetTxByHash(inputTrans.PrevId)
+		outIndex = inputTrans.OutIndex
+		if oldTrans == nil || oldTrans.Outputs[outIndex].PkeyTo != pkey ||
+			t.TypeVote != oldTrans.TypeVote ||
+			t.Duration != oldTrans.Duration {
 			return nil, ERR_TRANS_VERIFY
 		}
-		if !special && t.typeValue != oldTrans.typeValue {
+		if !special && t.TypeValue != oldTrans.TypeValue {
 			return nil, ERR_TRANS_VERIFY
 		}
-		oldValSum += oldTrans.outputs[outIndex].value
+		oldValSum += oldTrans.Outputs[outIndex].Value
 	}
 
-	for _, outputTrans := range t.outputs {
-		thisValSum += outputTrans.value
+	for _, outputTrans := range t.Outputs {
+		thisValSum += outputTrans.Value
 	}
 
 	if oldValSum != thisValSum {
 		return nil, ERR_TRANS_VERIFY
 	}
 
-	if !VerifyData(data[:transSize-SIG_SIZE], t.signature[:], pkey) {
+	if !VerifyData(data[:transSize-SIG_SIZE], t.Signature[:], pkey) {
 		return nil, ERR_TRANS_VERIFY
 	}
 	return Hash(data[:transSize]), transSize

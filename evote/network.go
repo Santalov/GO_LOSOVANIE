@@ -37,7 +37,7 @@ type NetworkChannels struct {
 	blockVotes          chan NetworkMsg
 	kickValidatorVote   chan NetworkMsg
 	appendValidatorVote chan NetworkMsg
-	appendViewer	    chan NetworkByteMsg
+	appendViewer        chan NetworkByteMsg
 	blockAfter          chan NetworkByteMsg
 }
 
@@ -262,7 +262,7 @@ func (n *Network) handleSubmitClientTx(w http.ResponseWriter, req *http.Request)
 	var parsedData clientSubmitTx
 	err = json.Unmarshal(rawData, &parsedData)
 	if err != nil {
-		http.Error(w, "transaction required as tx field in json in body, example: {\"tx\":\"1bf12...\"}", http.StatusBadRequest)
+		http.Error(w, "Transaction required as tx field in json in body, example: {\"tx\":\"1bf12...\"}", http.StatusBadRequest)
 		return
 	}
 	tx, err := hex.DecodeString(parsedData.Tx)
@@ -312,7 +312,6 @@ func (n *Network) handleBlockVote(w http.ResponseWriter, req *http.Request) {
 func (n *Network) handleAppendValidatorVote(w http.ResponseWriter, req *http.Request) {
 	handleBinary(n.chs.appendValidatorVote, w, req)
 }
-
 
 func (n *Network) handleKickValidatorVote(w http.ResponseWriter, req *http.Request) {
 	handleBinary(n.chs.kickValidatorVote, w, req)

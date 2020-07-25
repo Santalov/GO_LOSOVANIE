@@ -91,7 +91,7 @@ func (bc *Blockchain) Setup(thisPrv []byte, thisAddr string, validators []*Valid
 
 	bc.allValidators = validators
 	for _, v := range bc.allValidators {
-		if bc.thisKey.pubKeyByte == v.pkey {
+		if bc.thisKey.PubkeyByte == v.pkey {
 			bc.thisValidator = v
 		}
 		bc.pkeyToValidator[v.pkey] = v
@@ -162,10 +162,10 @@ func (bc *Blockchain) Start() {
 			bc.onKickValidatorVote(msg.data, msg.response)
 		case msg := <-bc.chs.txsValidator:
 			// транза от валидатора
-			fmt.Println("transaction from validator", msg)
+			fmt.Println("Transaction from validator", msg)
 		case msg := <-bc.chs.txsClient:
 			// транза от приложения-клиента
-			fmt.Println("transaction from client", msg)
+			fmt.Println("Transaction from client", msg)
 		case msg := <-bc.chs.blockAfter:
 			//запрос на блок от INACTIVE или VIEWER
 			bc.onGetBlockAfter(msg.data, msg.response)
@@ -218,10 +218,10 @@ func (bc *Blockchain) onBlockReceiveValidator(data []byte, response chan Respons
 		return
 	}
 
-	bc.nextTickTime = bc.getTimeOfNextTick(time.Unix(0, int64(b.timestamp)))
+	bc.nextTickTime = bc.getTimeOfNextTick(time.Unix(0, int64(b.Timestamp)))
 	bc.currentBock = new(BlocAndkHash)
-	copy(bc.currentBock.hash[:], hash)
-	bc.currentBock.b = &b
+	copy(bc.currentBock.Hash[:], hash)
+	bc.currentBock.B = &b
 
 	bc.blockVoting[bc.thisValidator] = 1
 	// голосование за/против блока в doTickVoting
@@ -246,10 +246,10 @@ func (bc *Blockchain) onBlockReceiveViewer(data []byte, response chan ResponseMs
 
 	// установку nextTimeTick возможно надо перенести наверх, до вызова bc.getMissingBlock
 	// а из getMissingBlock установку nextTickTime полностью убрать
-	bc.nextTickTime = bc.getTimeOfNextTick(time.Unix(0, int64(b.timestamp)))
+	bc.nextTickTime = bc.getTimeOfNextTick(time.Unix(0, int64(b.Timestamp)))
 	bc.currentBock = new(BlocAndkHash)
-	copy(bc.currentBock.hash[:], hash)
-	bc.currentBock.b = &b
+	copy(bc.currentBock.Hash[:], hash)
+	bc.currentBock.B = &b
 
 	if len(bc.chs.blocks) == 0 {
 		bc.voteAppendValidator()
@@ -261,7 +261,7 @@ func (bc *Blockchain) voteAppendValidator() {
 	fmt.Println("create append req")
 	var data = make([]byte, INT_32_SIZE*2+HASH_SIZE+PKEY_SIZE)
 	binary.LittleEndian.PutUint64(data[:INT_32_SIZE*2], bc.chainSize)
-	copy(data[INT_32_SIZE*2:INT_32_SIZE*2+HASH_SIZE], bc.currentBock.hash[:])
+	copy(data[INT_32_SIZE*2:INT_32_SIZE*2+HASH_SIZE], bc.currentBock.Hash[:])
 	copy(data[INT_32_SIZE*2+HASH_SIZE:], bc.thisValidator.pkey[:])
 	data = bc.thisKey.AppendSign(data)
 	bc.appendVoting[bc.thisValidator] = 0
@@ -302,7 +302,7 @@ func (bc *Blockchain) onAppendVoteViewer(data []byte, response chan ResponseMsg)
 		}
 		return
 	}
-	if bc.currentBock != nil && bc.currentBock.hash == hash && bc.chainSize == size {
+	if bc.currentBock != nil && bc.currentBock.Hash == hash && bc.chainSize == size {
 		bc.appendVoting[sender] = 1
 		bc.appendVotingMe[sender] = 1
 	} else {
@@ -409,14 +409,14 @@ func (bc *Blockchain) updatePrevHashBlock() {
 	for i := MAX_PREV_BLOCK_HASHES - 1; i >= 1; i-- {
 		bc.prevBlockHashes[i] = bc.prevBlockHashes[i-1]
 	}
-	bc.prevBlockHashes[0] = bc.currentBock.hash
-	bc.prevBlockHash = bc.currentBock.hash
+	bc.prevBlockHashes[0] = bc.currentBock.Hash
+	bc.prevBlockHash = bc.currentBock.Hash
 }
 
 func (bc *Blockchain) updateUnrecordedTrans() {
 	var newUnrecorded []TransAndHash
 	for _, t := range bc.unrecordedTrans {
-		if !containsTransInBlock(bc.currentBock.b, t.hash) {
+		if !containsTransInBlock(bc.currentBock.B, t.Hash) {
 			newUnrecorded = append(newUnrecorded, t)
 		}
 	}
@@ -576,8 +576,8 @@ func (bc *Blockchain) onThisCreateBlock() {
 	blockBytes := b.ToBytes()
 	hash := b.HashBlock(blockBytes)
 	bc.currentBock = new(BlocAndkHash)
-	copy(bc.currentBock.hash[:], hash)
-	bc.currentBock.b = &b
+	copy(bc.currentBock.Hash[:], hash)
+	bc.currentBock.B = &b
 	bc.blockVoting[bc.thisValidator] = 0x01
 	go bc.network.SendBlockToAll(bc.activeHostsExceptMe, blockBytes)
 }
@@ -712,8 +712,8 @@ func (bc *Blockchain) getMissingBlock(host string) bool {
 			return false
 		}
 		bc.currentBock = new(BlocAndkHash)
-		copy(bc.currentBock.hash[:], hash)
-		bc.currentBock.b = &b
+		copy(bc.currentBock.Hash[:], hash)
+		bc.currentBock.B = &b
 		bc.updatePrevHashBlock()
 		err := bc.db.SaveNextBlock(bc.currentBock)
 		if err != nil {
@@ -722,7 +722,7 @@ func (bc *Blockchain) getMissingBlock(host string) bool {
 		bc.chainSize += 1
 		fmt.Println("current chain size is ", bc.chainSize)
 		// Это одни из предыдущих блоко, в nextTickTime будет время предыдущего (уже прошедшего) тика
-		bc.nextTickTime = bc.getTimeOfNextTick(time.Unix(0, int64(b.timestamp)))
+		bc.nextTickTime = bc.getTimeOfNextTick(time.Unix(0, int64(b.Timestamp)))
 		return true
 	}
 	return false
@@ -798,7 +798,7 @@ func (bc *Blockchain) onGetBlockAfter(data []byte, response chan ByteResponse) {
 		return
 	}
 	// ответ с блоком
-	blockBytes := b.b.ToBytes()
+	blockBytes := b.B.ToBytes()
 	response <- ByteResponse{
 		ok:   true,
 		data: blockBytes,

@@ -64,8 +64,8 @@ func removePkey(validators []*ValidatorNode, pkey [PKEY_SIZE]byte) []*ValidatorN
 }
 
 func containsTransInBlock(b *Block, hash [HASH_SIZE]byte) bool {
-	for _, val := range b.trans {
-		if hash == val.hash {
+	for _, val := range b.Trans {
+		if hash == val.Hash {
 			return true
 		}
 	}

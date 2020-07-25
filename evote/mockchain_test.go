@@ -76,20 +76,20 @@ var keyPairs = []keyPair{
 
 func makeCoinbaseTx(val uint32, pkeyTo [PKEY_SIZE]byte, blockNumber uint32) *Transaction {
 	return &Transaction{
-		inputSize:  0,
-		inputs:     nil,
-		outputSize: 1,
-		outputs: []TransactionOutput{
+		InputSize:  0,
+		Inputs:     nil,
+		OutputSize: 1,
+		Outputs: []TransactionOutput{
 			{
-				value:  val,
-				pkeyTo: pkeyTo,
+				Value:  val,
+				PkeyTo: pkeyTo,
 			},
 		},
-		duration:  0,
-		hashLink:  ZERO_ARRAY_HASH,
-		signature: randSig(),
-		typeVote:  blockNumber,
-		typeValue: ZERO_ARRAY_HASH,
+		Duration:  0,
+		HashLink:  ZERO_ARRAY_HASH,
+		Signature: randSig(),
+		TypeVote:  blockNumber,
+		TypeValue: ZERO_ARRAY_HASH,
 	}
 }
 
@@ -108,8 +108,8 @@ func blockHash(block *Block) [HASH_SIZE]byte {
 func appendHashes(txs []*Transaction) []TransAndHash {
 	res := make([]TransAndHash, len(txs))
 	for i, tx := range txs {
-		res[i].transaction = tx
-		copy(res[i].hash[:], Hash(tx.ToBytes()))
+		res[i].Transaction = tx
+		copy(res[i].Hash[:], Hash(tx.ToBytes()))
 	}
 	return res
 }
@@ -129,182 +129,182 @@ var TXS_BLOCK0 = []*Transaction{
 var TXS_BLOCK1 = []*Transaction{
 	COINBASE_TXS[1],
 	{
-		inputSize: 1,
-		inputs: []TransactionInput{
+		InputSize: 1,
+		Inputs: []TransactionInput{
 			{
-				prevId:   txHash(COINBASE_TXS[0]),
-				outIndex: 0,
+				PrevId:   txHash(COINBASE_TXS[0]),
+				OutIndex: 0,
 			},
 		},
-		outputSize: 2,
-		outputs: []TransactionOutput{
+		OutputSize: 2,
+		Outputs: []TransactionOutput{
 			{
-				value:  400,
-				pkeyTo: keyPairs[1].pub,
+				Value:  400,
+				PkeyTo: keyPairs[1].pub,
 			},
 			{
-				value:  600,
-				pkeyTo: keyPairs[0].pub,
+				Value:  600,
+				PkeyTo: keyPairs[0].pub,
 			},
 		},
-		duration:  0,
-		typeVote:  0,
-		typeValue: ZERO_ARRAY_HASH,
-		signature: randSig(),
-		hashLink:  ZERO_ARRAY_HASH,
+		Duration:  0,
+		TypeVote:  0,
+		TypeValue: ZERO_ARRAY_HASH,
+		Signature: randSig(),
+		HashLink:  ZERO_ARRAY_HASH,
 	},
 }
 
 var TXS_BLOCK2 = []*Transaction{
 	COINBASE_TXS[2],
 	{
-		inputSize: 2,
-		inputs: []TransactionInput{
+		InputSize: 2,
+		Inputs: []TransactionInput{
 			{
-				prevId:   txHash(TXS_BLOCK1[1]),
-				outIndex: 1,
+				PrevId:   txHash(TXS_BLOCK1[1]),
+				OutIndex: 1,
 			},
 			{
-				prevId:   txHash(TXS_BLOCK1[0]),
-				outIndex: 0,
-			},
-		},
-		outputSize: 2,
-		outputs: []TransactionOutput{
-			{
-				value:  2400,
-				pkeyTo: keyPairs[2].pub,
-			},
-			{
-				value:  200,
-				pkeyTo: keyPairs[2].pub,
+				PrevId:   txHash(TXS_BLOCK1[0]),
+				OutIndex: 0,
 			},
 		},
-		duration:  0,
-		typeVote:  0,
-		typeValue: ZERO_ARRAY_HASH,
-		signature: randSig(),
-		hashLink:  ZERO_ARRAY_HASH,
+		OutputSize: 2,
+		Outputs: []TransactionOutput{
+			{
+				Value:  2400,
+				PkeyTo: keyPairs[2].pub,
+			},
+			{
+				Value:  200,
+				PkeyTo: keyPairs[2].pub,
+			},
+		},
+		Duration:  0,
+		TypeVote:  0,
+		TypeValue: ZERO_ARRAY_HASH,
+		Signature: randSig(),
+		HashLink:  ZERO_ARRAY_HASH,
 	},
 }
 
 var TXS_BLOCK3 = []*Transaction{
 	COINBASE_TXS[3],
 	{ // транза создания голосования
-		inputSize: 1,
-		inputs: []TransactionInput{
+		InputSize: 1,
+		Inputs: []TransactionInput{
 			{
-				prevId:   txHash(TXS_BLOCK2[0]),
-				outIndex: 0,
+				PrevId:   txHash(TXS_BLOCK2[0]),
+				OutIndex: 0,
 			},
 		},
-		outputSize: 3,
-		outputs: []TransactionOutput{
+		OutputSize: 3,
+		Outputs: []TransactionOutput{
 			{
-				value:  2000,
-				pkeyTo: keyPairs[3].pub,
+				Value:  2000,
+				PkeyTo: keyPairs[3].pub,
 			},
 			{
-				value:  3000,
-				pkeyTo: keyPairs[4].pub,
+				Value:  3000,
+				PkeyTo: keyPairs[4].pub,
 			},
 			{
-				value:  4000,
-				pkeyTo: keyPairs[5].pub,
+				Value:  4000,
+				PkeyTo: keyPairs[5].pub,
 			},
 		},
-		duration:  100,
-		typeVote:  1,
-		typeValue: ZERO_ARRAY_HASH,
-		hashLink:  ZERO_ARRAY_HASH,
+		Duration:  100,
+		TypeVote:  1,
+		TypeValue: ZERO_ARRAY_HASH,
+		HashLink:  ZERO_ARRAY_HASH,
 	},
 }
 
 var TXS_BLOCK4 = []*Transaction{
 	COINBASE_TXS[4],
 	{ // траза голосвания
-		inputSize: 1,
-		inputs: []TransactionInput{
+		InputSize: 1,
+		Inputs: []TransactionInput{
 			{
-				prevId:   txHash(TXS_BLOCK3[1]),
-				outIndex: 0,
+				PrevId:   txHash(TXS_BLOCK3[1]),
+				OutIndex: 0,
 			},
 		},
-		outputSize: 1,
-		outputs: []TransactionOutput{
+		OutputSize: 1,
+		Outputs: []TransactionOutput{
 			{
-				value:  2000,
-				pkeyTo: keyPairs[6].pub,
+				Value:  2000,
+				PkeyTo: keyPairs[6].pub,
 			},
 		},
-		duration:  0,
-		typeVote:  0,
-		typeValue: txHash(TXS_BLOCK3[1]),
-		hashLink:  ZERO_ARRAY_HASH,
+		Duration:  0,
+		TypeVote:  0,
+		TypeValue: txHash(TXS_BLOCK3[1]),
+		HashLink:  ZERO_ARRAY_HASH,
 	},
 }
 
 var BLOCK0 = Block{
-	prevBlockHash: ZERO_ARRAY_HASH,
-	merkleTree:    randHash(),
-	timestamp:     uint64(time.Now().UnixNano()),
-	transSize:     uint32(len(TXS_BLOCK0)),
-	trans:         appendHashes(TXS_BLOCK0),
+	PrevBlockHash: ZERO_ARRAY_HASH,
+	MerkleTree:    randHash(),
+	Timestamp:     uint64(time.Now().UnixNano()),
+	TransSize:     uint32(len(TXS_BLOCK0)),
+	Trans:         appendHashes(TXS_BLOCK0),
 }
 
 var BLOCK1 = Block{
-	prevBlockHash: blockHash(&BLOCK0),
-	merkleTree:    randHash(),
-	timestamp:     uint64(time.Now().Add(10 * time.Second).UnixNano()),
-	transSize:     uint32(len(TXS_BLOCK1)),
-	trans:         appendHashes(TXS_BLOCK1),
+	PrevBlockHash: blockHash(&BLOCK0),
+	MerkleTree:    randHash(),
+	Timestamp:     uint64(time.Now().Add(10 * time.Second).UnixNano()),
+	TransSize:     uint32(len(TXS_BLOCK1)),
+	Trans:         appendHashes(TXS_BLOCK1),
 }
 
 var BLOCK2 = Block{
-	prevBlockHash: blockHash(&BLOCK1),
-	merkleTree:    randHash(),
-	timestamp:     uint64(time.Now().Add(20 * time.Second).UnixNano()),
-	transSize:     uint32(len(TXS_BLOCK2)),
-	trans:         appendHashes(TXS_BLOCK2),
+	PrevBlockHash: blockHash(&BLOCK1),
+	MerkleTree:    randHash(),
+	Timestamp:     uint64(time.Now().Add(20 * time.Second).UnixNano()),
+	TransSize:     uint32(len(TXS_BLOCK2)),
+	Trans:         appendHashes(TXS_BLOCK2),
 }
 
 var BLOCK3 = Block{
-	prevBlockHash: blockHash(&BLOCK2),
-	merkleTree:    randHash(),
-	timestamp:     uint64(time.Now().Add(30 * time.Second).UnixNano()),
-	transSize:     uint32(len(TXS_BLOCK3)),
-	trans:         appendHashes(TXS_BLOCK3),
+	PrevBlockHash: blockHash(&BLOCK2),
+	MerkleTree:    randHash(),
+	Timestamp:     uint64(time.Now().Add(30 * time.Second).UnixNano()),
+	TransSize:     uint32(len(TXS_BLOCK3)),
+	Trans:         appendHashes(TXS_BLOCK3),
 }
 
 var BLOCK4 = Block{
-	prevBlockHash: blockHash(&BLOCK3),
-	merkleTree:    randHash(),
-	timestamp:     uint64(time.Now().Add(30 * time.Second).UnixNano()),
-	transSize:     uint32(len(TXS_BLOCK4)),
-	trans:         appendHashes(TXS_BLOCK4),
+	PrevBlockHash: blockHash(&BLOCK3),
+	MerkleTree:    randHash(),
+	Timestamp:     uint64(time.Now().Add(30 * time.Second).UnixNano()),
+	TransSize:     uint32(len(TXS_BLOCK4)),
+	Trans:         appendHashes(TXS_BLOCK4),
 }
 
 var B_AND_H0 = BlocAndkHash{
-	b:    &BLOCK0,
-	hash: blockHash(&BLOCK0),
+	B:    &BLOCK0,
+	Hash: blockHash(&BLOCK0),
 }
 
 var B_AND_H1 = BlocAndkHash{
-	b:    &BLOCK1,
-	hash: blockHash(&BLOCK1),
+	B:    &BLOCK1,
+	Hash: blockHash(&BLOCK1),
 }
 
 var B_AND_H2 = BlocAndkHash{
-	b:    &BLOCK2,
-	hash: blockHash(&BLOCK2),
+	B:    &BLOCK2,
+	Hash: blockHash(&BLOCK2),
 }
 
 var B_AND_H3 = BlocAndkHash{
-	b:    &BLOCK3,
-	hash: blockHash(&BLOCK3),
+	B:    &BLOCK3,
+	Hash: blockHash(&BLOCK3),
 }
 
 var B_AND_H4 = BlocAndkHash{
-	b:    &BLOCK4,
-	hash: blockHash(&BLOCK4),
+	B:    &BLOCK4,
+	Hash: blockHash(&BLOCK4),
 }
