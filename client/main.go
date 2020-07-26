@@ -15,6 +15,7 @@ const (
 	BALANCE      = "balance"
 	TRANSACTIONS = "transactions"
 	SEND         = "send"
+	FAUCET       = "faucet"
 )
 
 func main() {
@@ -36,10 +37,10 @@ func main() {
 	var keys evote.CryptoKeysData
 	keys.SetupKeys(keyPair.Prv)
 	n.Init(hosts)
-	fmt.Println("available commands: " + BALANCE + ", " + TRANSACTIONS + ", " + SEND + "")
+	fmt.Println("available commands: " + BALANCE + ", " + TRANSACTIONS + ", " + SEND + ", " + FAUCET)
 
 	validate := func(input string) error {
-		if input == BALANCE || input == TRANSACTIONS || input == SEND {
+		if input == BALANCE || input == TRANSACTIONS || input == SEND || input == FAUCET {
 			return nil
 		} else {
 			return errors.New("invalid command")
@@ -66,6 +67,8 @@ func main() {
 			transactions(&keys, &n)
 		case SEND:
 			send(&keys, &n)
+		case FAUCET:
+			faucet(&keys, &n)
 		}
 	}
 

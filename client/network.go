@@ -175,3 +175,22 @@ func (n *Network) SubmitTx(tx []byte) error {
 		}
 	}
 }
+
+func (n *Network) Faucet(amount uint32, pkey [evote.PKEY_SIZE]byte) error {
+	data := make([]byte, evote.INT_32_SIZE+evote.PKEY_SIZE)
+	binary.LittleEndian.PutUint32(data[:evote.INT_32_SIZE], amount)
+	copy(data[evote.INT_32_SIZE:], pkey[:])
+	resp, err := http.Post("http://"+n.curHost+"/faucet", "application/octet-stream", bytes.NewReader(data))
+	if err != nil {
+		fmt.Println("request err: ", err)
+		return err
+	} else {
+		if resp.StatusCode != http.StatusOK {
+			body, _ := ioutil.ReadAll(resp.Body)
+			fmt.Printf("validator answered with error %v, body: %v\n", resp.Status, string(body))
+			return fmt.Errorf(string(body))
+		} else {
+			return nil
+		}
+	}
+}
