@@ -583,6 +583,17 @@ func (d *Database) GetUTXOSByTxId(txid [HASH_SIZE]byte) ([]*UTXO, error) {
 	)
 }
 
+func (d *Database) GetUTXOSByTypeValue(typeValue [HASH_SIZE]byte) ([]*UTXO, error) {
+	return d.getUTXOS(
+		`SELECT block.timestamp, transaction.typeValue, output.txid, output.Index, output.Value, output.publicKeyTo 
+			from block, transaction, output  
+			WHERE transaction.typeVote = 0 
+				and transaction.txid = output.txid and block.blockHash = transaction.blockHash 
+				and transaction.typeValue = $1 and output.isspentbytx is null`,
+		[]interface{}{typeValue[:]},
+	)
+}
+
 // если следующего блока нет, ошибки не будет, вернется nil, nil
 func (d *Database) GetBlockAfter(blockHash [HASH_SIZE]byte) (*BlocAndkHash, error) {
 	dbTx, err := d.db.Begin()
