@@ -26,7 +26,7 @@ const (
 	MAX_TRANS_SIZE        = 100 //тут стоит заглушка, не более 100 транз в блоке
 	REWARD                = 1000
 	MAX_PREV_BLOCK_HASHES = 10
-	UTXO_SIZE 			  = HASH_SIZE*2 + 2*INT_32_SIZE + PKEY_SIZE
+	UTXO_SIZE 			  = HASH_SIZE*2 + 4*INT_32_SIZE + PKEY_SIZE
 )
 
 var PIDOR_KEY = [PKEY_SIZE]byte{

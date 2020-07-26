@@ -52,6 +52,7 @@ type UTXO struct {
 	Index     uint32 // номер выхода в массиве выходов
 	Value     uint32
 	PkeyTo    [PKEY_SIZE]byte
+	Timestamp  uint64
 }
 
 func (utxo *UTXO) FromBytes(data []byte) int {
@@ -66,7 +67,9 @@ func (utxo *UTXO) FromBytes(data []byte) int {
 	offset += INT_32_SIZE
 	utxo.Value = binary.LittleEndian.Uint32(data[offset : offset+INT_32_SIZE])
 	offset += INT_32_SIZE
-	copy(utxo.PkeyTo[:], data[offset:])
+	copy(utxo.PkeyTo[:], data[offset:offset+PKEY_SIZE])
+	offset += PKEY_SIZE
+	utxo.Timestamp = binary.LittleEndian.Uint64(data[offset:offset+2*INT_32_SIZE])
 	return OK
 }
 
@@ -81,6 +84,8 @@ func (utxo *UTXO) ToBytes() []byte {
 	binary.LittleEndian.PutUint32(data[offset:offset+INT_32_SIZE], utxo.Value)
 	offset += INT_32_SIZE
 	copy(data[offset:offset+PKEY_SIZE], utxo.PkeyTo[:])
+	offset += PKEY_SIZE
+	binary.LittleEndian.PutUint64(data[offset:offset+2*INT_32_SIZE], utxo.Timestamp)
 	return data
 }
 
@@ -208,8 +213,9 @@ func (t *Transaction) CreateTrans(inputs []*UTXO, outputs map[[PKEY_SIZE]byte]ui
 			maxValInputs += in.Value
 		}
 	}
-
-	if maxValInputs < maxValOutputs {
+	transLen := MIN_TRANS_SIZE -TRANS_OUTPUT_SIZE + t.InputSize*TRANS_INPUT_SIZE
+	transLen += TRANS_OUTPUT_SIZE*t.OutputSize
+	if maxValInputs < maxValOutputs || transLen > MAX_BLOCK_SIZE-MIN_BLOCK_SIZE {
 		t.Inputs = make([]TransactionInput, 0)
 		t.Outputs = make([]TransactionOutput, 0)
 		return ERR_CREATE_TRANS
@@ -244,56 +250,56 @@ func (t *Transaction) Verify(data []byte, db *Database) ([]byte, int) {
 		fmt.Println("err: no inputs or outputs")
 		return nil, ERR_TRANS_VERIFY
 	}
-	if t.TypeVote == 0 {
-		// обработать как обычную транзу
-		var inputsSum, outputsSum uint32
-		var pkey [PKEY_SIZE]byte
-		for i, input := range t.Inputs {
-			var correspondingUtxo *UTXO
-			utxos, err := db.GetUTXOSByTxId(input.PrevId)
-			if err != nil {
-				panic(err)
-			}
-			// проверка, что вход - непотраченный выход дургой транзы
-			for _, utxo := range utxos {
-				if utxo.Index == input.OutIndex {
-					correspondingUtxo = utxo
-					if i == 0 {
-						pkey = correspondingUtxo.PkeyTo
-					} else {
-						if pkey != correspondingUtxo.PkeyTo {
-							fmt.Println("err: input not owned by sender")
-						}
-					}
-					break
-				}
-			}
-			if correspondingUtxo == nil {
-				fmt.Println("err: double spending in tx")
-				return nil, ERR_TRANS_VERIFY
-			}
-			inputsSum += correspondingUtxo.Value
-			// проверка, что в одной транзе не смешиваются разные typeValue
-			if correspondingUtxo.TypeValue != t.TypeValue {
-				fmt.Println("err: incorrect typeValue in input", input)
-				return nil, ERR_TRANS_VERIFY
-			}
 
-		}
-		for _, output := range t.Outputs {
-			outputsSum += output.Value
-		}
-		if outputsSum != inputsSum {
-			fmt.Printf("err: outputs sum %v is not matching than inputs sum %v\n", outputsSum, inputsSum)
-			return nil, ERR_TRANS_VERIFY
-		}
-		if !VerifyData(data[:transSize-SIG_SIZE], t.Signature[:], pkey) {
-			fmt.Println("err: signature doesnt match")
-			return nil, ERR_TRANS_VERIFY
-		}
-		return Hash(data[:transSize]), transSize
-	} else {
-		// оработать как транзу создания голосования
-		panic("not implemented")
+	if t.HashLink != ZERO_ARRAY_HASH && (t.TypeValue == ZERO_ARRAY_HASH || t.TypeVote != 0) {
+		fmt.Println("err: trans with non-zero HashLink has incorrect TypeValue/TypeVote fields")
+		return nil, ERR_TRANS_VERIFY
 	}
+
+	var inputsSum, outputsSum uint32
+	var pkey [PKEY_SIZE]byte
+	for i, input := range t.Inputs {
+		var correspondingUtxo *UTXO
+		utxos, err := db.GetUTXOSByTxId(input.PrevId)
+		if err != nil {
+			panic(err)
+		}
+		// проверка, что вход - непотраченный выход дургой транзы
+		for _, utxo := range utxos {
+			if utxo.Index == input.OutIndex {
+				correspondingUtxo = utxo
+				if i == 0 {
+					pkey = correspondingUtxo.PkeyTo
+				} else {
+					if pkey != correspondingUtxo.PkeyTo {
+						fmt.Println("err: input not owned by sender")
+					}
+				}
+				break
+			}
+		}
+		if correspondingUtxo == nil {
+			fmt.Println("err: double spending in tx")
+			return nil, ERR_TRANS_VERIFY
+		}
+		inputsSum += correspondingUtxo.Value
+		// проверка, что в одной транзе не смешиваются разные typeValue
+		if t.HashLink == ZERO_ARRAY_HASH && t.TypeVote == 0 && correspondingUtxo.TypeValue != t.TypeValue {
+			fmt.Println("err: incorrect typeValue in input", input)
+			return nil, ERR_TRANS_VERIFY
+		}
+
+	}
+	for _, output := range t.Outputs {
+		outputsSum += output.Value
+	}
+	if outputsSum != inputsSum {
+		fmt.Printf("err: outputs sum %v is not matching than inputs sum %v\n", outputsSum, inputsSum)
+		return nil, ERR_TRANS_VERIFY
+	}
+	if !VerifyData(data[:transSize-SIG_SIZE], t.Signature[:], pkey) {
+		fmt.Println("err: signature doesnt match")
+		return nil, ERR_TRANS_VERIFY
+	}
+	return Hash(data[:transSize]), transSize
 }
