@@ -209,8 +209,6 @@ func (t *Transaction) CreateTrans(inputs []*UTXO, outputs map[[PKEY_SIZE]byte]ui
 		t.Outputs = make([]TransactionOutput, 0)
 		return ERR_CREATE_TRANS
 	}
-	t.OutputSize = uint32(len(t.Outputs))
-	t.InputSize = uint32(len(t.Inputs))
 
 	if maxValInputs > maxValOutputs {
 		t.Outputs = append(t.Outputs,
@@ -219,6 +217,8 @@ func (t *Transaction) CreateTrans(inputs []*UTXO, outputs map[[PKEY_SIZE]byte]ui
 				Value:  maxValInputs - maxValOutputs,
 			})
 	}
+	t.OutputSize = uint32(len(t.Outputs))
+	t.InputSize = uint32(len(t.Inputs))
 	t.TypeValue = typeValue
 	t.TypeVote = 0 // заглушка, нужен фикс
 	t.Duration = 0 // заглушка, нужен фикс
@@ -232,46 +232,63 @@ func (t *Transaction) CreateTrans(inputs []*UTXO, outputs map[[PKEY_SIZE]byte]ui
 func (t *Transaction) Verify(data []byte, db *Database) ([]byte, int) {
 	var transSize = t.FromBytes(data)
 	if transSize == ERR_TRANS_SIZE {
+		fmt.Println("err: tx not parsed")
 		return nil, ERR_TRANS_SIZE
 	}
-	fmt.Println("tx parsed")
 	if t.OutputSize == 0 || t.InputSize == 0 {
+		fmt.Println("err: no inputs or outputs")
 		return nil, ERR_TRANS_VERIFY
 	}
-	var special = t.Outputs[0].PkeyTo == SPECIAL_PKEY
-	var inputTrans = t.Inputs[0]
-	oldTrans, _ := db.GetTxByHash(inputTrans.PrevId)
-	if oldTrans == nil {
-		return nil, ERR_TRANS_VERIFY
-	}
-	var outIndex = inputTrans.OutIndex
-	var pkey = oldTrans.Outputs[outIndex].PkeyTo
-	var oldValSum uint32 = 0
-	var thisValSum uint32 = 0
-	for _, inputTrans := range t.Inputs {
-		oldTrans, _ = db.GetTxByHash(inputTrans.PrevId)
-		outIndex = inputTrans.OutIndex
-		if oldTrans == nil || oldTrans.Outputs[outIndex].PkeyTo != pkey ||
-			t.TypeVote != oldTrans.TypeVote ||
-			t.Duration != oldTrans.Duration {
+	if t.TypeVote == 0 {
+		// обработать как обычную транзу
+		var inputsSum, outputsSum uint32
+		var pkey [PKEY_SIZE]byte
+		for i, input := range t.Inputs {
+			var correspondingUtxo *UTXO
+			utxos, err := db.GetUTXOSByTxId(input.PrevId)
+			if err != nil {
+				panic(err)
+			}
+			// проверка, что вход - непотраченный выход дургой транзы
+			for _, utxo := range utxos {
+				if utxo.Index == input.OutIndex {
+					correspondingUtxo = utxo
+					if i == 0 {
+						pkey = correspondingUtxo.PkeyTo
+					} else {
+						if pkey != correspondingUtxo.PkeyTo {
+							fmt.Println("err: input not owned by sender")
+						}
+					}
+					break
+				}
+			}
+			if correspondingUtxo == nil {
+				fmt.Println("err: double spending in tx")
+				return nil, ERR_TRANS_VERIFY
+			}
+			inputsSum += correspondingUtxo.Value
+			// проверка, что в одной транзе не смешиваются разные typeValue
+			if correspondingUtxo.TypeValue != t.TypeValue {
+				fmt.Println("err: incorrect typeValue in input", input)
+				return nil, ERR_TRANS_VERIFY
+			}
+
+		}
+		for _, output := range t.Outputs {
+			outputsSum += output.Value
+		}
+		if outputsSum != inputsSum {
+			fmt.Printf("err: outputs sum %v is not matching than inputs sum %v\n", outputsSum, inputsSum)
 			return nil, ERR_TRANS_VERIFY
 		}
-		if !special && t.TypeValue != oldTrans.TypeValue {
+		if !VerifyData(data[:transSize-SIG_SIZE], t.Signature[:], pkey) {
+			fmt.Println("err: signature doesnt match")
 			return nil, ERR_TRANS_VERIFY
 		}
-		oldValSum += oldTrans.Outputs[outIndex].Value
+		return Hash(data[:transSize]), transSize
+	} else {
+		// оработать как транзу создания голосования
+		panic("not implemented")
 	}
-
-	for _, outputTrans := range t.Outputs {
-		thisValSum += outputTrans.Value
-	}
-
-	if oldValSum != thisValSum {
-		return nil, ERR_TRANS_VERIFY
-	}
-
-	if !VerifyData(data[:transSize-SIG_SIZE], t.Signature[:], pkey) {
-		return nil, ERR_TRANS_VERIFY
-	}
-	return Hash(data[:transSize]), transSize
 }
