@@ -181,6 +181,15 @@ func (bc *Blockchain) Start() {
 			//голосование за добавление валидатора
 			fmt.Println("on append vote incoming")
 			bc.onAppendVote(msg.data, msg.response)
+		case msg := <-bc.chs.getTxsByHashes:
+			fmt.Println("get txs by hashes request")
+			bc.onGetTxsByHashes(msg.data, msg.response)
+		case msg := <-bc.chs.getTxsByPkey:
+			fmt.Println("get txs by pkey request")
+			bc.onGetTxsByPkey(msg.data, msg.response)
+		case msg := <-bc.chs.getUtxosByPkey:
+			fmt.Println("get utxos by pkey request")
+			bc.onGetUtxosByPkey(msg.data, msg.response)
 		}
 	}
 }
@@ -206,6 +215,7 @@ func (bc *Blockchain) onTransReceive(data []byte, response chan ResponseMsg) boo
 	}
 	var t Transaction
 	hash, transLen := t.Verify(data, bc.db)
+	fmt.Println("trans len", transLen)
 	if transLen != len(data) {
 		response <- ResponseMsg{
 			ok:    false,
@@ -841,4 +851,107 @@ func (bc *Blockchain) onGetBlockAfter(data []byte, response chan ByteResponse) {
 		data: blockBytes,
 	}
 
+}
+
+func (bc *Blockchain) onGetTxsByHashes(data []byte, response chan ByteResponse) {
+	if len(data) < INT_32_SIZE {
+		response <- ByteResponse{
+			ok:    false,
+			error: "no hashes sent",
+		}
+		return
+	}
+	hashesNum := binary.LittleEndian.Uint32(data[:INT_32_SIZE])
+	if int(hashesNum)*HASH_SIZE+INT_32_SIZE != len(data) {
+		response <- ByteResponse{
+			ok:    false,
+			error: "incorrect hashes length",
+		}
+		return
+	}
+	offset := INT_32_SIZE
+	hashes := make([][HASH_SIZE]byte, 0)
+	for offset+HASH_SIZE <= len(data) {
+		hash := [HASH_SIZE]byte{}
+		copy(hash[:], data[offset:offset+HASH_SIZE])
+		hashes = append(hashes, hash)
+		offset += HASH_SIZE
+	}
+	txs, err := bc.db.GetTxsByHashes(hashes)
+	if err != nil {
+		response <- ByteResponse{
+			ok:    false,
+			error: "db error" + err.Error(),
+		}
+		return
+	}
+	txsPacked := make([]byte, INT_32_SIZE)
+	binary.LittleEndian.PutUint32(txsPacked, uint32(len(txs)))
+	for _, tx := range txs {
+		txsPacked = append(txsPacked, tx.Transaction.ToBytes()...)
+	}
+	response <- ByteResponse{
+		ok:   true,
+		data: txsPacked,
+	}
+	return
+}
+
+func (bc *Blockchain) onGetTxsByPkey(data []byte, response chan ByteResponse) {
+	if len(data) != PKEY_SIZE {
+		response <- ByteResponse{
+			ok:    false,
+			error: "incorrect pkey size",
+		}
+		return
+	}
+	pkey := [PKEY_SIZE]byte{}
+	copy(pkey[:], data)
+	txs, err := bc.db.GetTxsByPubKey(pkey)
+	if err != nil {
+		response <- ByteResponse{
+			ok:    false,
+			error: "db error" + err.Error(),
+		}
+		return
+	}
+	txsPacked := make([]byte, INT_32_SIZE)
+	binary.LittleEndian.PutUint32(txsPacked, uint32(len(txs)))
+	for _, tx := range txs {
+		txsPacked = append(txsPacked, tx.Transaction.ToBytes()...)
+	}
+	response <- ByteResponse{
+		ok:   true,
+		data: txsPacked,
+	}
+	return
+}
+
+func (bc *Blockchain) onGetUtxosByPkey(data []byte, response chan ByteResponse) {
+	if len(data) != PKEY_SIZE {
+		response <- ByteResponse{
+			ok:    false,
+			error: "incorrect pkey size",
+		}
+		return
+	}
+	pkey := [PKEY_SIZE]byte{}
+	copy(pkey[:], data)
+	utxos, err := bc.db.GetUTXOSByPkey(pkey)
+	if err != nil {
+		response <- ByteResponse{
+			ok:    false,
+			error: "db error" + err.Error(),
+		}
+		return
+	}
+	utxosPacked := make([]byte, INT_32_SIZE)
+	binary.LittleEndian.PutUint32(utxosPacked, uint32(len(utxos)))
+	for _, utxo := range utxos {
+		utxosPacked = append(utxosPacked, utxo.ToBytes()...)
+	}
+	response <- ByteResponse{
+		ok:   true,
+		data: utxosPacked,
+	}
 }

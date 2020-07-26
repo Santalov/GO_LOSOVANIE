@@ -10,13 +10,13 @@ func balance(keys *evote.CryptoKeysData, n *Network) {
 	priv := keys.PrivateKey
 	utxos, err := n.GetUtxosByPkey(pkey)
 	if err != nil {
-		if retryQuestion() {
+		if retryQuestion(n) {
 			balance(keys, n)
 		}
 	}
 	txs, err := n.GetTxsByPkey(pkey)
 	if err != nil {
-		if retryQuestion() {
+		if retryQuestion(n) {
 			balance(keys, n)
 		}
 	}

@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"net/http"
 )
 
@@ -39,12 +40,9 @@ func makeBinaryRequest(host string, endPoint string, data []byte) (response []by
 func makeInfoRequest(host string, response chan string) {
 	resp, err := http.Get("http://" + host + "/info")
 	if err != nil {
-		fmt.Println("network err: ", err)
 		response <- ""
 	} else {
 		if resp.StatusCode != http.StatusOK {
-			body, _ := ioutil.ReadAll(resp.Body)
-			fmt.Printf("network: server answered with error %v, body: %v\n", resp.Status, string(body))
 			response <- ""
 		} else {
 			response <- host
@@ -88,6 +86,7 @@ func (n *Network) SelectNextHost() {
 
 func (n *Network) createWorkingHosts() {
 	n.workingHosts = pingHosts(n.allHosts)
+	fmt.Println(len(n.workingHosts), "validators online")
 	if len(n.workingHosts) == 0 {
 		panic("No available validators. Client need a validator to work with")
 	}
@@ -96,6 +95,7 @@ func (n *Network) createWorkingHosts() {
 func (n *Network) Init(allHosts []string) {
 	n.allHosts = allHosts
 	n.createWorkingHosts()
+	n.curHost = n.workingHosts[rand.Int()%len(n.workingHosts)]
 }
 
 func parseTrans(data []byte) ([]*evote.Transaction, error) {

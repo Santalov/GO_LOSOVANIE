@@ -66,7 +66,7 @@ func send(keys *evote.CryptoKeysData, n *Network) {
 	pkey := keys.PubkeyByte
 	utxos, err := n.GetUtxosByPkey(pkey)
 	if err != nil {
-		if retryQuestion() {
+		if retryQuestion(n) {
 			send(keys, n)
 		}
 	}
@@ -86,7 +86,7 @@ func send(keys *evote.CryptoKeysData, n *Network) {
 func sendTx(tx *evote.Transaction, n *Network) {
 	err := n.SubmitTx(tx.ToBytes())
 	if err != nil {
-		if retryQuestion() {
+		if retryQuestion(n) {
 			sendTx(tx, n)
 		}
 	}

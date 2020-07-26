@@ -7,7 +7,7 @@ import (
 	"github.com/manifoldco/promptui"
 )
 
-func retryQuestion() bool {
+func retryQuestion(n *Network) bool {
 	prompt := promptui.Select{
 		Label: "Retry?",
 		Items: []string{"Yes", "No"},
@@ -21,6 +21,7 @@ func retryQuestion() bool {
 	}
 
 	if result == "Yes" {
+		n.SelectNextHost()
 		return true
 	} else {
 		return false

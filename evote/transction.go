@@ -2,6 +2,7 @@ package evote
 
 import (
 	"encoding/binary"
+	"fmt"
 )
 
 //func for Search in Database
@@ -233,6 +234,7 @@ func (t *Transaction) Verify(data []byte, db *Database) ([]byte, int) {
 	if transSize == ERR_TRANS_SIZE {
 		return nil, ERR_TRANS_SIZE
 	}
+	fmt.Println("tx parsed")
 	if t.OutputSize == 0 || t.InputSize == 0 {
 		return nil, ERR_TRANS_VERIFY
 	}
