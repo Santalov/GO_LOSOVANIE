@@ -75,7 +75,7 @@ func (b *Block) CreateMiningReward(keys *CryptoKeysData, curChainSize uint64) Tr
 	tOut.PkeyTo = keys.PubkeyByte
 	t.Outputs = append(t.Outputs, tOut)
 	t.TypeValue = ZERO_ARRAY_HASH
-	t.TypeVote = uint32(curChainSize >> 32)
+	t.TypeVote = 0
 	t.Duration = uint32(curChainSize)
 	t.HashLink = ZERO_ARRAY_HASH
 	t.Signature = ZERO_ARRAY_SIG
