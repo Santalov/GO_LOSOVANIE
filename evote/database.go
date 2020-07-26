@@ -391,13 +391,15 @@ func (d *Database) getUTXOS(sqlQuery string, params []interface{}) ([]*UTXO, err
 	utxos := make([]*UTXO, 0)
 	for utxosRows.Next() {
 		var typeValue, txid, pkeyTo []byte
+		var timestamp uint64
 		utxo := new(UTXO)
-		err := utxosRows.Scan(&typeValue, &txid, &utxo.Index, &utxo.Value, &pkeyTo)
+		err := utxosRows.Scan(&timestamp, &typeValue, &txid, &utxo.Index, &utxo.Value, &pkeyTo)
 		if err != nil {
 			_ = dbTx.Rollback()
 			return nil, err
 		}
 		utxo.TypeValue = sliceToHash(typeValue)
+		// TODO: присваивать timestamp
 		copy(utxo.TxId[:], txid)
 		copy(utxo.PkeyTo[:], pkeyTo)
 		utxos = append(utxos, utxo)
@@ -419,14 +421,16 @@ func (d *Database) GetUTXOSByPkey(pkey [PKEY_SIZE]byte) ([]*UTXO, error) {
 	// условие transaction.typeVote = 0 нужно, чтобы не выбрать typeValue транзы создания голосования, который всегда нулевой
 	// typeValue выходов транзы создания голосования - её хеш, для этого нужен второй селект после union
 	return d.getUTXOS(
-		`SELECT transaction.typeValue, output.txid, output.Index, output.Value, output.publicKeyTo 
-			from transaction, output  
-			WHERE transaction.typeVote = 0 and transaction.txid = output.txid 
+		`SELECT block.timestamp, transaction.typeValue, output.txid, output.Index, output.Value, output.publicKeyTo 
+			from block,transaction, output  
+			WHERE transaction.typeVote = 0 
+				and transaction.txid = output.txid and block.blockHash = transaction.blockHash 
 				and output.publickeyto = $1 and output.isspentbytx is null
 			UNION
-			SELECT transaction.txid, output.txid, output.Index, output.Value, output.publicKeyTo
-			from transaction, output
-			WHERE transaction.typeVote != 0 and transaction.txid = output.txid 
+			SELECT block.timestamp, transaction.txid, output.txid, output.Index, output.Value, output.publicKeyTo
+			from block, transaction, output
+			WHERE transaction.typeVote != 0 
+				and transaction.txid = output.txid and block.blockHash = transaction.blockHash
 				and output.publickeyto = $1 and output.isspentbytx is null`,
 		[]interface{}{pkey[:]},
 	)
@@ -434,14 +438,16 @@ func (d *Database) GetUTXOSByPkey(pkey [PKEY_SIZE]byte) ([]*UTXO, error) {
 
 func (d *Database) GetUTXOSByTxId(txid [HASH_SIZE]byte) ([]*UTXO, error) {
 	return d.getUTXOS(
-		`SELECT transaction.typeValue, output.txid, output.Index, output.Value, output.publicKeyTo 
-			from transaction, output  
-			WHERE transaction.typeVote = 0 and transaction.txid = output.txid 
+		`SELECT block.timestamp, transaction.typeValue, output.txid, output.Index, output.Value, output.publicKeyTo 
+			from block, transaction, output  
+			WHERE transaction.typeVote = 0 
+				and transaction.txid = output.txid and block.blockHash = transaction.blockHash 
 				and output.txid = $1 and output.isspentbytx is null
 			UNION
-			SELECT transaction.txid, output.txid, output.Index, output.Value, output.publicKeyTo
-			from transaction, output
-			WHERE transaction.typeVote != 0 and transaction.txid = output.txid 
+			SELECT block.timestamp, transaction.txid, output.txid, output.Index, output.Value, output.publicKeyTo
+			from block, transaction, output
+			WHERE transaction.typeVote != 0 
+				and transaction.txid = output.txid and block.blockHash = transaction.blockHash
 				and output.txid = $1 and output.isspentbytx is null`,
 		[]interface{}{txid[:]},
 	)
