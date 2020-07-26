@@ -236,9 +236,6 @@ func (t *Transaction) CreateTrans(inputs []*UTXO, outputs map[[PKEY_SIZE]byte]ui
 }
 
 func (t *Transaction) Verify(data []byte, db *Database) ([]byte, int) {
-	/*
-		4. Сделать Verify на транзакции создания голосования и на транзы с hashLink
-	*/
 	var transSize = t.FromBytes(data)
 	if transSize == ERR_TRANS_SIZE {
 		fmt.Println("err: tx not parsed")
