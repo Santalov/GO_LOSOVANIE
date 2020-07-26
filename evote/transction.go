@@ -208,8 +208,9 @@ func (t *Transaction) CreateTrans(inputs []*UTXO, outputs map[[PKEY_SIZE]byte]ui
 			maxValInputs += in.Value
 		}
 	}
-
-	if maxValInputs < maxValOutputs {
+	transLen := MIN_TRANS_SIZE -TRANS_OUTPUT_SIZE + t.InputSize*TRANS_INPUT_SIZE
+	transLen += TRANS_OUTPUT_SIZE*t.OutputSize
+	if maxValInputs < maxValOutputs || transLen > MAX_BLOCK_SIZE-MIN_BLOCK_SIZE {
 		t.Inputs = make([]TransactionInput, 0)
 		t.Outputs = make([]TransactionOutput, 0)
 		return ERR_CREATE_TRANS

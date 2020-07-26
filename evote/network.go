@@ -36,6 +36,7 @@ type NetworkChannels struct {
 	blockVotes          chan NetworkMsg
 	kickValidatorVote   chan NetworkMsg
 	appendValidatorVote chan NetworkMsg
+	faucet			    chan NetworkMsg
 	appendViewer        chan NetworkByteMsg
 	blockAfter          chan NetworkByteMsg
 	getUtxosByPkey      chan NetworkByteMsg
@@ -75,6 +76,8 @@ func (n *Network) Init() *NetworkChannels {
 	http.Handle("/appendViewer", http.HandlerFunc(n.handleAppendViewer))
 	http.Handle("/blockAfter", http.HandlerFunc(n.handleBlockAfter))
 	http.Handle("/voteAppendValidator", http.HandlerFunc(n.handleAppendValidatorVote))
+	http.Handle("/faucet", http.HandlerFunc(n.handleFaucet))
+
 
 	n.chs = NetworkChannels{
 		make(chan NetworkMsg, chanSize),
@@ -83,11 +86,13 @@ func (n *Network) Init() *NetworkChannels {
 		make(chan NetworkMsg, chanSize),
 		make(chan NetworkMsg, chanSize),
 		make(chan NetworkMsg, chanSize),
+		make(chan NetworkMsg, chanSize),
 		make(chan NetworkByteMsg, chanSize),
 		make(chan NetworkByteMsg, chanSize),
 		make(chan NetworkByteMsg, chanSize),
 		make(chan NetworkByteMsg, chanSize),
 		make(chan NetworkByteMsg, chanSize),
+
 	}
 	return &n.chs
 }
@@ -305,6 +310,10 @@ func (n *Network) handleSubmitValidatorTx(w http.ResponseWriter, req *http.Reque
 
 func (n *Network) handleSubmitBlock(w http.ResponseWriter, req *http.Request) {
 	handleBinary(n.chs.blocks, w, req)
+}
+
+func (n *Network) handleFaucet(w http.ResponseWriter, req *http.Request) {
+	handleBinary(n.chs.faucet, w, req)
 }
 
 func (n *Network) handleBlockVote(w http.ResponseWriter, req *http.Request) {

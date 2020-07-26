@@ -190,6 +190,9 @@ func (bc *Blockchain) Start() {
 		case msg := <-bc.chs.getUtxosByPkey:
 			fmt.Println("get utxos by pkey request")
 			bc.onGetUtxosByPkey(msg.data, msg.response)
+		case msg := <-bc.chs.faucet:
+			fmt.Println("get money by pkey request")
+			bc.onGetMoneyRequest(msg.data, msg.response)
 		}
 	}
 }
@@ -854,6 +857,13 @@ func (bc *Blockchain) onGetBlockAfter(data []byte, response chan ByteResponse) {
 }
 
 func (bc *Blockchain) onGetTxsByHashes(data []byte, response chan ByteResponse) {
+	if bc.validatorStatus != VALIDATOR {
+		response <- ByteResponse{
+			ok:    false,
+			error: "i'm not validator",
+		}
+		return
+	}
 	if len(data) < INT_32_SIZE {
 		response <- ByteResponse{
 			ok:    false,
@@ -898,6 +908,13 @@ func (bc *Blockchain) onGetTxsByHashes(data []byte, response chan ByteResponse) 
 }
 
 func (bc *Blockchain) onGetTxsByPkey(data []byte, response chan ByteResponse) {
+	if bc.validatorStatus != VALIDATOR {
+		response <- ByteResponse{
+			ok:    false,
+			error: "i'm not validator",
+		}
+		return
+	}
 	if len(data) != PKEY_SIZE {
 		response <- ByteResponse{
 			ok:    false,
@@ -928,6 +945,13 @@ func (bc *Blockchain) onGetTxsByPkey(data []byte, response chan ByteResponse) {
 }
 
 func (bc *Blockchain) onGetUtxosByPkey(data []byte, response chan ByteResponse) {
+	if bc.validatorStatus != VALIDATOR {
+		response <- ByteResponse{
+			ok:    false,
+			error: "i'm not validator",
+		}
+		return
+	}
 	if len(data) != PKEY_SIZE {
 		response <- ByteResponse{
 			ok:    false,
@@ -953,5 +977,59 @@ func (bc *Blockchain) onGetUtxosByPkey(data []byte, response chan ByteResponse) 
 	response <- ByteResponse{
 		ok:   true,
 		data: utxosPacked,
+	}
+}
+
+func (bc *Blockchain) onGetMoneyRequest(data []byte, response chan ResponseMsg) {
+	if bc.validatorStatus != VALIDATOR {
+		response <- ResponseMsg {
+			ok:    false,
+			error: "i'm not validator",
+		}
+		return
+	}
+	if len(data) != INT_32_SIZE + PKEY_SIZE {
+		response <- ResponseMsg {
+			ok:    false,
+			error: "incorrect msg len",
+		}
+		return
+	}
+
+	var pkey [PKEY_SIZE]byte
+	var amount = binary.LittleEndian.Uint32(data[:INT_32_SIZE])
+	copy(pkey[:], data[INT_32_SIZE:])
+	utxos, err := bc.db.GetUTXOSByPkey(bc.thisValidator.Pkey)
+	if err != nil {
+		response <- ResponseMsg{
+			ok:    false,
+			error: "db error: " + err.Error(),
+		}
+		return
+	}
+	var t Transaction
+	var outputs = make(map[[PKEY_SIZE]byte]uint32, 0)
+	outputs[pkey] = amount
+	errCreate := t.CreateTrans(utxos, outputs, ZERO_ARRAY_HASH, bc.thisKey)
+	if errCreate != OK {
+		response <- ResponseMsg {
+			ok:    false,
+			error: "trans create err",
+		}
+		return
+	}
+	transBytes := t.ToBytes()
+	hash, transLen := t.Verify(transBytes, bc.db)
+	if transLen < 0 {
+		response <- ResponseMsg {
+			ok:    false,
+			error: "trans create-verify err",
+		}
+		return
+	}
+	bc.appendUnrecordedTrans(&t, hash)
+	go bc.network.SendTxToAll(bc.activeHostsExceptMe, transBytes)
+	response <- ResponseMsg{
+		ok: true,
 	}
 }
