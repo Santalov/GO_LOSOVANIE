@@ -1029,7 +1029,31 @@ func (bc *Blockchain) onGetMoneyRequest(data []byte, response chan ResponseMsg) 
 	}
 	bc.appendUnrecordedTrans(&t, hash)
 	go bc.network.SendTxToAll(bc.activeHostsExceptMe, transBytes)
-	response <- ResponseMsg{
+	response <- ResponseMsg {
+		ok: true,
+	}
+}
+
+func (bc *Blockchain) onGetVoteResult(data []byte, response chan ByteResponse) {
+	if bc.validatorStatus != VALIDATOR {
+		response <- ByteResponse {
+			ok:    false,
+			error: "i'm not validator",
+		}
+		return
+	}
+	if len(data) != PKEY_SIZE {
+		response <- ByteResponse {
+			ok:    false,
+			error: "incorrect msg len",
+		}
+		return
+	}
+
+
+
+
+	response <- ByteResponse {
 		ok: true,
 	}
 }

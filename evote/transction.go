@@ -52,6 +52,7 @@ type UTXO struct {
 	Index     uint32 // номер выхода в массиве выходов
 	Value     uint32
 	PkeyTo    [PKEY_SIZE]byte
+	Timestamp  uint64
 }
 
 func (utxo *UTXO) FromBytes(data []byte) int {
@@ -66,7 +67,9 @@ func (utxo *UTXO) FromBytes(data []byte) int {
 	offset += INT_32_SIZE
 	utxo.Value = binary.LittleEndian.Uint32(data[offset : offset+INT_32_SIZE])
 	offset += INT_32_SIZE
-	copy(utxo.PkeyTo[:], data[offset:])
+	copy(utxo.PkeyTo[:], data[offset:offset+PKEY_SIZE])
+	offset += PKEY_SIZE
+	utxo.Timestamp = binary.LittleEndian.Uint64(data[offset:offset+2*INT_32_SIZE])
 	return OK
 }
 
@@ -81,6 +84,8 @@ func (utxo *UTXO) ToBytes() []byte {
 	binary.LittleEndian.PutUint32(data[offset:offset+INT_32_SIZE], utxo.Value)
 	offset += INT_32_SIZE
 	copy(data[offset:offset+PKEY_SIZE], utxo.PkeyTo[:])
+	offset += PKEY_SIZE
+	binary.LittleEndian.PutUint64(data[offset:offset+2*INT_32_SIZE], utxo.Timestamp)
 	return data
 }
 
