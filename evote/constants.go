@@ -29,19 +29,11 @@ const (
 	UTXO_SIZE 			  = HASH_SIZE*2 + 4*INT_32_SIZE + PKEY_SIZE
 )
 
-var PIDOR_KEY = [PKEY_SIZE]byte{
-	2,
-	199, 89, 244, 28, 179, 70, 135, 230,
-	204, 55, 62, 69, 177, 45, 145, 99,
-	213, 202, 234, 71, 110, 65, 231, 212,
-	196, 45, 166, 81, 30, 100, 39, 93,
-}
 
-var SPECIAL_PKEY = [PKEY_SIZE]byte{
-	0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
-	0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
-	0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
-}
+const (
+	ONE_VOTE_TYPE = 0x01
+	PERCENT_VOTE_TYPE = 0x02
+)
 
 var ZERO_ARRAY_HASH = [HASH_SIZE]byte{}
 

@@ -71,3 +71,13 @@ func containsTransInBlock(b *Block, hash [HASH_SIZE]byte) bool {
 	}
 	return false
 }
+
+func getVoteValue(value, typeVote uint32) int32 {
+	if typeVote == ONE_VOTE_TYPE {
+		return 1
+	}
+	if typeVote == PERCENT_VOTE_TYPE {
+		return int32(value)
+	}
+	return int32(value)
+}

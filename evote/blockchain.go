@@ -193,6 +193,9 @@ func (bc *Blockchain) Start() {
 		case msg := <-bc.chs.faucet:
 			fmt.Println("get money by pkey request")
 			bc.onGetMoneyRequest(msg.data, msg.response)
+		case msg := <-bc.chs.getVoteResult:
+			fmt.Println("get money by pkey request")
+			bc.onGetVoteResult(msg.data, msg.response)
 		}
 	}
 }
@@ -810,7 +813,7 @@ func (bc *Blockchain) onAppendViewer(data []byte, response chan ByteResponse) {
 	}
 
 	respData := bc.thisKey.AppendSign(bc.thisValidator.Pkey[:])
-	response <- ByteResponse{
+	response <- ByteResponse {
 		ok:   true,
 		data: respData,
 	}
@@ -1042,18 +1045,85 @@ func (bc *Blockchain) onGetVoteResult(data []byte, response chan ByteResponse) {
 		}
 		return
 	}
-	if len(data) != PKEY_SIZE {
+
+	if len(data) != HASH_SIZE{
 		response <- ByteResponse {
 			ok:    false,
 			error: "incorrect msg len",
 		}
 		return
 	}
+	var mainHash [HASH_SIZE]byte
+	copy(mainHash[:], data[:])
+	t, timeStart, err := bc.db.GetTxAndTimeByHash(mainHash)
+	if err != nil {
+		response <- ByteResponse {
+			ok:    false,
+			error: "db error: " + err.Error(),
+		}
+		return
+	}
+	endTime := timeStart + uint64(time.Second) * uint64(t.Transaction.Duration)
+	utxos, err := bc.db.GetUTXOSByTypeValue(mainHash)
+	if err != nil {
+		response <- ByteResponse {
+			ok:    false,
+			error: "db error: " + err.Error(),
+		}
+		return
+	}
 
 
+	//блок подсчета голосов надо разбить на разные функции, так как
+	//в при некоторых случаях один и тот же избиратель может голосовать дважды,
+	//может голосовать "за", "против", "воздержался" и т.п.
+	//так же может происходит сортировка результатов гослования в зависимости от его типа
+	result := make(map[[PKEY_SIZE]byte]int32, 0)
+	for _, utxo := range utxos {
+		_, contains := result[utxo.PkeyTo]
+		if utxo.TypeValue == t.Hash && utxo.Timestamp < endTime {
+			if contains {
+				result[utxo.PkeyTo] += getVoteValue(utxo.Value, t.Transaction.TypeVote)
+			} else {
+				result[utxo.PkeyTo] = getVoteValue(utxo.Value, t.Transaction.TypeVote)
+			}
+		}
+	}
 
+	for {
+		for _, out := range t.Transaction.Outputs {
+			_, contains := result[out.PkeyTo]
+			if contains {
+				delete(result, out.PkeyTo)
+			}
+		}
+		t, err = bc.db.GetTxByHashLink(t.Hash)
+		if err != nil {
+			response <- ByteResponse {
+				ok:    false,
+				error: "db error: " + err.Error(),
+			}
+			return
+		}
+		if t == nil {
+			break
+		}
+	}
+
+	//create bytes result
+	var resBytes[]byte
+	var valBytes[INT_32_SIZE]byte
+	fmt.Println("result voting with mainHash: ", mainHash)
+	for pkey, val := range result {
+		fmt.Println(pkey, val)
+		binary.LittleEndian.PutUint32(valBytes[:], uint32(val))
+		resBytes = append(resBytes, pkey[:]...)
+		resBytes = append(resBytes, valBytes[:]...)
+	}
+	fmt.Println()
 
 	response <- ByteResponse {
 		ok: true,
+		data: resBytes,
 	}
 }

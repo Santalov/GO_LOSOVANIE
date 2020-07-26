@@ -42,6 +42,7 @@ type NetworkChannels struct {
 	getUtxosByPkey      chan NetworkByteMsg
 	getTxsByPkey        chan NetworkByteMsg
 	getTxsByHashes      chan NetworkByteMsg
+	getVoteResult       chan NetworkByteMsg
 }
 
 // этими сообщениями Blockchain сообщает результаты проверки
@@ -77,7 +78,7 @@ func (n *Network) Init() *NetworkChannels {
 	http.Handle("/blockAfter", http.HandlerFunc(n.handleBlockAfter))
 	http.Handle("/voteAppendValidator", http.HandlerFunc(n.handleAppendValidatorVote))
 	http.Handle("/faucet", http.HandlerFunc(n.handleFaucet))
-
+	http.Handle("/getVoteResult", http.HandlerFunc(n.handleGetVoteResult))
 
 	n.chs = NetworkChannels{
 		make(chan NetworkMsg, chanSize),
@@ -92,7 +93,7 @@ func (n *Network) Init() *NetworkChannels {
 		make(chan NetworkByteMsg, chanSize),
 		make(chan NetworkByteMsg, chanSize),
 		make(chan NetworkByteMsg, chanSize),
-
+		make(chan NetworkByteMsg, chanSize),
 	}
 	return &n.chs
 }
@@ -315,6 +316,11 @@ func (n *Network) handleSubmitBlock(w http.ResponseWriter, req *http.Request) {
 func (n *Network) handleFaucet(w http.ResponseWriter, req *http.Request) {
 	handleBinary(n.chs.faucet, w, req)
 }
+
+func (n *Network) handleGetVoteResult(w http.ResponseWriter, req *http.Request) {
+	handleBinary(n.chs.faucet, w, req)
+}
+
 
 func (n *Network) handleBlockVote(w http.ResponseWriter, req *http.Request) {
 	handleBinary(n.chs.blockVotes, w, req)
