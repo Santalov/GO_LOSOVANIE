@@ -11,7 +11,7 @@ create table transaction (
     typeValue bytea,
     typeVote integer,
     duration integer null,
-    hashLink bytea null,
+    hashLink bytea null unique,
     signature bytea not null,
     blockHash bytea not null references block(blockHash) on delete cascade on update no action
 );

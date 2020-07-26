@@ -340,6 +340,136 @@ func (d *Database) GetTxsByHashes(txHashes [][HASH_SIZE]byte) ([]TransAndHash, e
 	return txs, nil
 }
 
+func (d *Database) GetTxAndTimeByHash(hash [HASH_SIZE]byte) (*TransAndHash, uint64, error) {
+	dbTx, err := d.db.Begin()
+	if err != nil {
+		return nil, 0, err
+	}
+	txRow, err := dbTx.Query(
+		`
+		SELECT block.timestamp, transaction.txid, transaction.typevalue, transaction.typevote, 
+		transaction.Duration, transaction.HashLink, transaction.Signature 
+		FROM block, transaction WHERE Transaction.txid = $1 and block.blockHash = transaction.blockHash`,
+		hash[:],
+	)
+
+	if err != nil {
+		_ = dbTx.Rollback()
+		return nil, 0, err
+	}
+
+	if txRow.Next() {
+		var typeValue, hashLink, hash, signature []byte
+		var txAndHash TransAndHash
+		var timestamp uint64
+		txAndHash.Transaction = new(Transaction)
+		err := txRow.Scan(
+			&timestamp,
+			&hash,
+			&typeValue,
+			&txAndHash.Transaction.TypeVote,
+			&txAndHash.Transaction.Duration,
+			&hashLink,
+			&signature,
+		)
+		if err != nil {
+			_ = dbTx.Rollback()
+			return nil, 0, err
+		}
+		txAndHash.Transaction.TypeValue = sliceToHash(typeValue)
+		txAndHash.Transaction.HashLink = sliceToHash(hashLink)
+		copy(txAndHash.Hash[:], hash)
+		copy(txAndHash.Transaction.Signature[:], signature)
+		err = txRow.Close()
+		if err != nil {
+			_ = dbTx.Rollback()
+			return nil, 0, err
+		}
+		tx := txAndHash.Transaction
+		tx.Inputs, tx.Outputs, err = getTxInputsAndOutputs(dbTx, txAndHash.Hash)
+		if err != nil {
+			_ = dbTx.Rollback()
+			return nil, 0, err
+		}
+		tx.InputSize = uint32(len(tx.Inputs))
+		tx.OutputSize = uint32(len(tx.Outputs))
+		err = dbTx.Commit()
+		if err != nil {
+			_ = dbTx.Rollback()
+			return nil, 0, err
+		}
+		return &txAndHash, timestamp, nil
+	} else {
+		_ = dbTx.Rollback()
+		return nil, 0, err
+	}
+}
+
+func (d *Database) GetTxByHashLink(hashLink [HASH_SIZE]byte) (*TransAndHash, error) {
+	dbTx, err := d.db.Begin()
+	if err != nil {
+		return nil, err
+	}
+	txRow, err := dbTx.Query(
+		`
+		SELECT transaction.txid, transaction.typevalue, transaction.typevote, 
+		transaction.Duration, transaction.HashLink, transaction.Signature 
+		FROM transaction WHERE Transaction.HashLink = $1`,
+		hashLink[:],
+	)
+
+	if err != nil {
+		_ = dbTx.Rollback()
+		return nil, err
+	}
+
+	if txRow.Next() {
+		var typeValue, hashLink, hash, signature []byte
+		var txAndHash TransAndHash
+		var timestamp uint64
+		txAndHash.Transaction = new(Transaction)
+		err := txRow.Scan(
+			&timestamp,
+			&hash,
+			&typeValue,
+			&txAndHash.Transaction.TypeVote,
+			&txAndHash.Transaction.Duration,
+			&hashLink,
+			&signature,
+		)
+		if err != nil {
+			_ = dbTx.Rollback()
+			return nil, err
+		}
+		txAndHash.Transaction.TypeValue = sliceToHash(typeValue)
+		txAndHash.Transaction.HashLink = sliceToHash(hashLink)
+		copy(txAndHash.Hash[:], hash)
+		copy(txAndHash.Transaction.Signature[:], signature)
+		err = txRow.Close()
+		if err != nil {
+			_ = dbTx.Rollback()
+			return nil, err
+		}
+		tx := txAndHash.Transaction
+		tx.Inputs, tx.Outputs, err = getTxInputsAndOutputs(dbTx, txAndHash.Hash)
+		if err != nil {
+			_ = dbTx.Rollback()
+			return nil, err
+		}
+		tx.InputSize = uint32(len(tx.Inputs))
+		tx.OutputSize = uint32(len(tx.Outputs))
+		err = dbTx.Commit()
+		if err != nil {
+			_ = dbTx.Rollback()
+			return nil, err
+		}
+		return &txAndHash, nil
+	} else {
+		_ = dbTx.Rollback()
+		return nil, err
+	}
+}
+
 func (d *Database) GetTxsByPubKey(pkey [PKEY_SIZE]byte) ([]TransAndHash, error) {
 	dbTx, err := d.db.Begin()
 	if err != nil {
