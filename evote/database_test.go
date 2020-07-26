@@ -87,6 +87,7 @@ func TestDatabase(t *testing.T) {
 				Index:     0,
 				Value:     tx.Transaction.Outputs[0].Value,
 				PkeyTo:    pkey,
+				Timestamp: BLOCK0.Timestamp,
 			},
 		}
 		utxosReceived, err := db.GetUTXOSByPkey(pkey)
@@ -103,6 +104,7 @@ func TestDatabase(t *testing.T) {
 				Index:     0,
 				Value:     tx.Transaction.Outputs[0].Value,
 				PkeyTo:    pkey,
+				Timestamp: BLOCK0.Timestamp,
 			},
 		}
 		utxosReceived, err := db.GetUTXOSByTxId(tx.Hash)
@@ -168,6 +170,7 @@ func TestDatabase(t *testing.T) {
 				Index:     0,
 				Value:     output0.Value,
 				PkeyTo:    output0.PkeyTo,
+				Timestamp: BLOCK1.Timestamp,
 			},
 			{
 				TxId:      tx1.Hash,
@@ -175,6 +178,7 @@ func TestDatabase(t *testing.T) {
 				Index:     1,
 				Value:     output1.Value,
 				PkeyTo:    output1.PkeyTo,
+				Timestamp: BLOCK1.Timestamp,
 			},
 		}
 		utxosReceived, err := db.GetUTXOSByPkey(pkey)
@@ -192,6 +196,7 @@ func TestDatabase(t *testing.T) {
 				Index:     0,
 				Value:     output.Value,
 				PkeyTo:    pkey,
+				Timestamp: BLOCK1.Timestamp,
 			},
 		}
 		utxosReceived, err := db.GetUTXOSByPkey(pkey)
@@ -208,6 +213,7 @@ func TestDatabase(t *testing.T) {
 				Index:     0,
 				Value:     output0.Value,
 				PkeyTo:    output0.PkeyTo,
+				Timestamp: BLOCK1.Timestamp,
 			},
 		}
 		utxosReceived, err := db.GetUTXOSByTxId(tx0.Hash)
@@ -225,6 +231,7 @@ func TestDatabase(t *testing.T) {
 				Index:     0,
 				Value:     output0.Value,
 				PkeyTo:    output0.PkeyTo,
+				Timestamp: BLOCK1.Timestamp,
 			},
 			{
 				TxId:      tx1.Hash,
@@ -232,6 +239,7 @@ func TestDatabase(t *testing.T) {
 				Index:     1,
 				Value:     output1.Value,
 				PkeyTo:    output1.PkeyTo,
+				Timestamp: BLOCK1.Timestamp,
 			},
 		}
 		utxosReceived, err := db.GetUTXOSByTxId(tx1.Hash)
@@ -352,6 +360,7 @@ func TestDatabase(t *testing.T) {
 				Index:     0,
 				Value:     output0.Value,
 				PkeyTo:    pkey,
+				Timestamp: BLOCK1.Timestamp,
 			},
 			{
 				TxId:      tx1.Hash,
@@ -359,6 +368,7 @@ func TestDatabase(t *testing.T) {
 				Index:     0,
 				Value:     output1.Value,
 				PkeyTo:    pkey,
+				Timestamp: BLOCK2.Timestamp,
 			},
 		}
 		utxosReceived, err := db.GetUTXOSByPkey(pkey)
@@ -397,6 +407,7 @@ func TestDatabase(t *testing.T) {
 				Index:     0,
 				Value:     2000,
 				PkeyTo:    pkey,
+				Timestamp: BLOCK3.Timestamp,
 			},
 		}
 		utxosReceived, err := db.GetUTXOSByPkey(pkey)
@@ -412,6 +423,7 @@ func TestDatabase(t *testing.T) {
 				Index:     0,
 				Value:     2000,
 				PkeyTo:    tx.Transaction.Outputs[0].PkeyTo,
+				Timestamp: BLOCK3.Timestamp,
 			},
 			{
 				TxId:      tx.Hash,
@@ -419,6 +431,7 @@ func TestDatabase(t *testing.T) {
 				Index:     1,
 				Value:     3000,
 				PkeyTo:    tx.Transaction.Outputs[1].PkeyTo,
+				Timestamp: BLOCK3.Timestamp,
 			},
 			{
 				TxId:      tx.Hash,
@@ -426,6 +439,7 @@ func TestDatabase(t *testing.T) {
 				Index:     2,
 				Value:     4000,
 				PkeyTo:    tx.Transaction.Outputs[2].PkeyTo,
+				Timestamp: BLOCK3.Timestamp,
 			},
 		}
 		utxosReceived, err := db.GetUTXOSByTxId(tx.Hash)
@@ -456,6 +470,7 @@ func TestDatabase(t *testing.T) {
 				Index:     0,
 				Value:     3000,
 				PkeyTo:    pkey,
+				Timestamp: BLOCK4.Timestamp,
 			},
 			{
 				TxId:      tx.Hash,
@@ -463,6 +478,7 @@ func TestDatabase(t *testing.T) {
 				Index:     0,
 				Value:     2000,
 				PkeyTo:    pkey,
+				Timestamp: BLOCK4.Timestamp,
 			},
 		}
 		utxosReceived, err := db.GetUTXOSByPkey(pkey)
@@ -485,6 +501,7 @@ func TestDatabase(t *testing.T) {
 				Index:     0,
 				Value:     2000,
 				PkeyTo:    tx.Transaction.Outputs[0].PkeyTo,
+				Timestamp: BLOCK4.Timestamp,
 			},
 		}
 		utxosReceived, err := db.GetUTXOSByTxId(tx.Hash)
@@ -500,6 +517,7 @@ func TestDatabase(t *testing.T) {
 				Index:     1,
 				Value:     3000,
 				PkeyTo:    tx.Transaction.Outputs[1].PkeyTo,
+				Timestamp: BLOCK3.Timestamp,
 			},
 			{
 				TxId:      tx.Hash,
@@ -507,6 +525,7 @@ func TestDatabase(t *testing.T) {
 				Index:     2,
 				Value:     4000,
 				PkeyTo:    tx.Transaction.Outputs[2].PkeyTo,
+				Timestamp: BLOCK3.Timestamp,
 			},
 		}
 		utxosReceived, err := db.GetUTXOSByTxId(tx.Hash)

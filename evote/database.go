@@ -399,7 +399,7 @@ func (d *Database) getUTXOS(sqlQuery string, params []interface{}) ([]*UTXO, err
 			return nil, err
 		}
 		utxo.TypeValue = sliceToHash(typeValue)
-		// TODO: присваивать timestamp
+		utxo.Timestamp = timestamp
 		copy(utxo.TxId[:], txid)
 		copy(utxo.PkeyTo[:], pkeyTo)
 		utxos = append(utxos, utxo)
