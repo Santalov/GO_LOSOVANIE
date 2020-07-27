@@ -813,7 +813,7 @@ func (bc *Blockchain) onAppendViewer(data []byte, response chan ByteResponse) {
 	}
 
 	respData := bc.thisKey.AppendSign(bc.thisValidator.Pkey[:])
-	response <- ByteResponse {
+	response <- ByteResponse{
 		ok:   true,
 		data: respData,
 	}
@@ -985,14 +985,14 @@ func (bc *Blockchain) onGetUtxosByPkey(data []byte, response chan ByteResponse) 
 
 func (bc *Blockchain) onGetMoneyRequest(data []byte, response chan ResponseMsg) {
 	if bc.validatorStatus != VALIDATOR {
-		response <- ResponseMsg {
+		response <- ResponseMsg{
 			ok:    false,
 			error: "i'm not validator",
 		}
 		return
 	}
-	if len(data) != INT_32_SIZE + PKEY_SIZE {
-		response <- ResponseMsg {
+	if len(data) != INT_32_SIZE+PKEY_SIZE {
+		response <- ResponseMsg{
 			ok:    false,
 			error: "incorrect msg len",
 		}
@@ -1013,9 +1013,9 @@ func (bc *Blockchain) onGetMoneyRequest(data []byte, response chan ResponseMsg) 
 	var t Transaction
 	var outputs = make(map[[PKEY_SIZE]byte]uint32, 0)
 	outputs[pkey] = amount
-	errCreate := t.CreateTrans(utxos, outputs, ZERO_ARRAY_HASH, bc.thisKey)
+	errCreate := t.CreateTrans(utxos, outputs, ZERO_ARRAY_HASH, bc.thisKey, 0, 0, false)
 	if errCreate != OK {
-		response <- ResponseMsg {
+		response <- ResponseMsg{
 			ok:    false,
 			error: "trans create err",
 		}
@@ -1024,7 +1024,7 @@ func (bc *Blockchain) onGetMoneyRequest(data []byte, response chan ResponseMsg) 
 	transBytes := t.ToBytes()
 	hash, transLen := t.Verify(transBytes, bc.db)
 	if transLen < 0 {
-		response <- ResponseMsg {
+		response <- ResponseMsg{
 			ok:    false,
 			error: "trans create-verify err",
 		}
@@ -1032,22 +1032,22 @@ func (bc *Blockchain) onGetMoneyRequest(data []byte, response chan ResponseMsg) 
 	}
 	bc.appendUnrecordedTrans(&t, hash)
 	go bc.network.SendTxToAll(bc.activeHostsExceptMe, transBytes)
-	response <- ResponseMsg {
+	response <- ResponseMsg{
 		ok: true,
 	}
 }
 
 func (bc *Blockchain) onGetVoteResult(data []byte, response chan ByteResponse) {
 	if bc.validatorStatus != VALIDATOR {
-		response <- ByteResponse {
+		response <- ByteResponse{
 			ok:    false,
 			error: "i'm not validator",
 		}
 		return
 	}
 
-	if len(data) != HASH_SIZE{
-		response <- ByteResponse {
+	if len(data) != HASH_SIZE {
+		response <- ByteResponse{
 			ok:    false,
 			error: "incorrect msg len",
 		}
@@ -1057,22 +1057,21 @@ func (bc *Blockchain) onGetVoteResult(data []byte, response chan ByteResponse) {
 	copy(mainHash[:], data[:])
 	t, timeStart, err := bc.db.GetTxAndTimeByHash(mainHash)
 	if err != nil {
-		response <- ByteResponse {
+		response <- ByteResponse{
 			ok:    false,
 			error: "db error: " + err.Error(),
 		}
 		return
 	}
-	endTime := timeStart + uint64(time.Second) * uint64(t.Transaction.Duration)
+	endTime := timeStart + uint64(time.Second)*uint64(t.Transaction.Duration)
 	utxos, err := bc.db.GetUTXOSByTypeValue(mainHash)
 	if err != nil {
-		response <- ByteResponse {
+		response <- ByteResponse{
 			ok:    false,
 			error: "db error: " + err.Error(),
 		}
 		return
 	}
-
 
 	//блок подсчета голосов надо разбить на разные функции, так как
 	//в при некоторых случаях один и тот же избиратель может голосовать дважды,
@@ -1099,7 +1098,7 @@ func (bc *Blockchain) onGetVoteResult(data []byte, response chan ByteResponse) {
 		}
 		t, err = bc.db.GetTxByHashLink(t.Hash)
 		if err != nil {
-			response <- ByteResponse {
+			response <- ByteResponse{
 				ok:    false,
 				error: "db error: " + err.Error(),
 			}
@@ -1111,8 +1110,8 @@ func (bc *Blockchain) onGetVoteResult(data []byte, response chan ByteResponse) {
 	}
 
 	//create bytes result
-	var resBytes[]byte
-	var valBytes[INT_32_SIZE]byte
+	var resBytes []byte
+	var valBytes [INT_32_SIZE]byte
 	fmt.Println("result voting with mainHash: ", mainHash)
 	for pkey, val := range result {
 		fmt.Println(pkey, val)
@@ -1122,8 +1121,8 @@ func (bc *Blockchain) onGetVoteResult(data []byte, response chan ByteResponse) {
 	}
 	fmt.Println()
 
-	response <- ByteResponse {
-		ok: true,
+	response <- ByteResponse{
+		ok:   true,
 		data: resBytes,
 	}
 }

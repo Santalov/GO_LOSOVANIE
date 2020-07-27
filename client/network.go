@@ -82,6 +82,7 @@ func (n *Network) SelectNextHost() {
 			panic("No available validators. Client need a validator to work with")
 		}
 	}
+	n.curHost = n.workingHosts[rand.Int()%len(n.workingHosts)]
 }
 
 func (n *Network) createWorkingHosts() {

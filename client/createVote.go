@@ -10,8 +10,8 @@ import (
 	"strings"
 )
 
-func createVote(keys *evote.CryptoKeysData, n *Network) {
-	var typeVote, amountPerParticipant uint32
+func createVoting(keys *evote.CryptoKeysData, n *Network) {
+	var typeVote, amountPerParticipant, duration uint32
 	prompt := promptui.Select{
 		Label: "Select vote type",
 		Items: []string{"Majority", "Percentage"},
@@ -25,9 +25,9 @@ func createVote(keys *evote.CryptoKeysData, n *Network) {
 	}
 
 	if result == "Majority" {
-		typeVote = 1
+		typeVote = evote.ONE_VOTE_TYPE
 	} else if result == "Percentage" {
-		typeVote = 2
+		typeVote = evote.PERCENT_VOTE_TYPE
 	}
 
 	validateAmount := func(input string) error {
@@ -52,6 +52,20 @@ func createVote(keys *evote.CryptoKeysData, n *Network) {
 
 	amount64, _ := strconv.ParseInt(amountStr, 10, 64)
 	amountPerParticipant = uint32(amount64)
+
+	promptDuration := promptui.Prompt{
+		Label:    "Voting duration (seconds):",
+		Validate: validateAmount,
+	}
+
+	durationStr, err := promptDuration.Run()
+	if err != nil {
+		fmt.Printf("Fail: %v\n", err)
+		return
+	}
+
+	duration64, _ := strconv.ParseInt(durationStr, 10, 32)
+	duration = uint32(duration64)
 
 	validateParticipants := func(input string) error {
 		pkeyStrings := strings.Split(input, " ")
@@ -94,12 +108,11 @@ func createVote(keys *evote.CryptoKeysData, n *Network) {
 	utxos, err := n.GetUtxosByPkey(keys.PubkeyByte)
 	if err != nil {
 		if retryQuestion(n) {
-			send(keys, n)
+			createVoting(keys, n)
 		}
 	}
 	var tx evote.Transaction
-	retCode := tx.CreateTrans(utxos, outputs, evote.ZERO_ARRAY_HASH, keys)
-	tx.TypeVote = typeVote
+	retCode := tx.CreateTrans(utxos, outputs, evote.ZERO_ARRAY_HASH, keys, typeVote, duration, false)
 	if retCode == evote.ERR_CREATE_TRANS {
 		fmt.Println("insufficient balance")
 		return
