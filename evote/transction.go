@@ -52,7 +52,7 @@ type UTXO struct {
 	Index     uint32 // номер выхода в массиве выходов
 	Value     uint32
 	PkeyTo    [PKEY_SIZE]byte
-	Timestamp  uint64
+	Timestamp uint64
 }
 
 func (utxo *UTXO) FromBytes(data []byte) int {
@@ -69,7 +69,7 @@ func (utxo *UTXO) FromBytes(data []byte) int {
 	offset += INT_32_SIZE
 	copy(utxo.PkeyTo[:], data[offset:offset+PKEY_SIZE])
 	offset += PKEY_SIZE
-	utxo.Timestamp = binary.LittleEndian.Uint64(data[offset:offset+2*INT_32_SIZE])
+	utxo.Timestamp = binary.LittleEndian.Uint64(data[offset : offset+2*INT_32_SIZE])
 	return OK
 }
 
@@ -187,7 +187,7 @@ func (t *Transaction) FromBytes(data []byte) int {
 }
 
 func (t *Transaction) CreateTrans(inputs []*UTXO, outputs map[[PKEY_SIZE]byte]uint32,
-	typeValue [HASH_SIZE]byte, keys *CryptoKeysData) int {
+	typeValue [HASH_SIZE]byte, keys *CryptoKeysData, typeVote uint32, duration uint32, ignoreTypeValue bool) int {
 	if len(inputs) == 0 || len(outputs) == 0 {
 		return ERR_CREATE_TRANS
 	}
@@ -204,7 +204,7 @@ func (t *Transaction) CreateTrans(inputs []*UTXO, outputs map[[PKEY_SIZE]byte]ui
 	}
 
 	for _, in := range inputs {
-		if in.TypeValue == typeValue && maxValInputs < maxValOutputs {
+		if (ignoreTypeValue || in.TypeValue == typeValue) && maxValInputs < maxValOutputs {
 			t.Inputs = append(t.Inputs,
 				TransactionInput{
 					PrevId:   in.TxId,
@@ -213,8 +213,8 @@ func (t *Transaction) CreateTrans(inputs []*UTXO, outputs map[[PKEY_SIZE]byte]ui
 			maxValInputs += in.Value
 		}
 	}
-	transLen := MIN_TRANS_SIZE -TRANS_OUTPUT_SIZE + t.InputSize*TRANS_INPUT_SIZE
-	transLen += TRANS_OUTPUT_SIZE*t.OutputSize
+	transLen := MIN_TRANS_SIZE - TRANS_OUTPUT_SIZE + t.InputSize*TRANS_INPUT_SIZE
+	transLen += TRANS_OUTPUT_SIZE * t.OutputSize
 	if maxValInputs < maxValOutputs || transLen > MAX_BLOCK_SIZE-MIN_BLOCK_SIZE {
 		t.Inputs = make([]TransactionInput, 0)
 		t.Outputs = make([]TransactionOutput, 0)
@@ -231,8 +231,8 @@ func (t *Transaction) CreateTrans(inputs []*UTXO, outputs map[[PKEY_SIZE]byte]ui
 	t.OutputSize = uint32(len(t.Outputs))
 	t.InputSize = uint32(len(t.Inputs))
 	t.TypeValue = typeValue
-	t.TypeVote = 0 // заглушка, нужен фикс
-	t.Duration = 0 // заглушка, нужен фикс
+	t.TypeVote = typeVote
+	t.Duration = duration
 	t.HashLink = ZERO_ARRAY_HASH
 	t.Signature = ZERO_ARRAY_SIG
 	copy(t.Signature[:], keys.Sign(t.ToBytes()))
@@ -297,6 +297,7 @@ func (t *Transaction) Verify(data []byte, db *Database) ([]byte, int) {
 		fmt.Printf("err: outputs sum %v is not matching than inputs sum %v\n", outputsSum, inputsSum)
 		return nil, ERR_TRANS_VERIFY
 	}
+	fmt.Println("pkey", pkey, "signature", t.Signature)
 	if !VerifyData(data[:transSize-SIG_SIZE], t.Signature[:], pkey) {
 		fmt.Println("err: signature doesnt match")
 		return nil, ERR_TRANS_VERIFY

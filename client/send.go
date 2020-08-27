@@ -71,7 +71,7 @@ func send(keys *evote.CryptoKeysData, n *Network) {
 		}
 	}
 	var tx evote.Transaction
-	retCode := tx.CreateTrans(utxos, outputs, evote.ZERO_ARRAY_HASH, keys)
+	retCode := tx.CreateTrans(utxos, outputs, evote.ZERO_ARRAY_HASH, keys, 0, 0, false)
 	if retCode == evote.ERR_CREATE_TRANS {
 		fmt.Println("insufficient balance")
 		return

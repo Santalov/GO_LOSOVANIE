@@ -20,11 +20,13 @@ func balance(keys *evote.CryptoKeysData, n *Network) {
 			balance(keys, n)
 		}
 	}
+	coinsBalance, votesBalance := calcBalance(utxos, evote.ZERO_ARRAY_HASH)
 	fmt.Printf(
-		"publicKey:  %s\nprivateKey: %s\nbalance:    %v\ntrans num:  %v\n",
+		"publicKey:     %s\nprivateKey:    %s\ncoins balance: %v\nvotes balance: %v\ntrans num:     %v\n",
 		pkeyHex(pkey),
 		bToHex(priv.Raw()),
-		calcBalance(utxos),
+		coinsBalance,
+		votesBalance,
 		len(txs),
 	)
 }

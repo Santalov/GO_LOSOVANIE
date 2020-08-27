@@ -28,12 +28,15 @@ func retryQuestion(n *Network) bool {
 	}
 }
 
-func calcBalance(utxos []*evote.UTXO) uint32 {
-	var balance uint32
+func calcBalance(utxos []*evote.UTXO, typeValue [evote.HASH_SIZE]byte) (balanceOfTypeValue, otherBalance uint32) {
 	for _, utxo := range utxos {
-		balance += utxo.Value
+		if utxo.TypeValue == typeValue {
+			balanceOfTypeValue += utxo.Value
+		} else {
+			otherBalance += utxo.Value
+		}
 	}
-	return balance
+	return
 }
 
 func pkeyHex(pkey [evote.PKEY_SIZE]byte) string {
