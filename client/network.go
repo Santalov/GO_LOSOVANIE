@@ -4,6 +4,7 @@ import (
 	"GO_LOSOVANIE/evote"
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"math/rand"
@@ -194,4 +195,24 @@ func (n *Network) Faucet(amount uint32, pkey [evote.PKEY_SIZE]byte) error {
 			return nil
 		}
 	}
+}
+
+func (n *Network) VoteResults(hash [evote.HASH_SIZE]byte) (map[[evote.PKEY_SIZE]byte]uint32, error) {
+	data, err := makeBinaryRequest(n.curHost, "/getVoteResult", hash[:])
+	if err != nil {
+		return nil, err
+	}
+	itemSize := evote.PKEY_SIZE + evote.INT_32_SIZE
+	resLen := len(data) / itemSize
+	if len(data)%itemSize != 0 {
+		return nil, errors.New("incorrect result len")
+	}
+	results := make(map[[evote.PKEY_SIZE]byte]uint32)
+	for i := 0; i < resLen; i++ {
+		var candidate [evote.PKEY_SIZE]byte
+		copy(candidate[:], data[i*itemSize:i*itemSize+evote.PKEY_SIZE])
+		results[candidate] =
+			binary.LittleEndian.Uint32(data[i*itemSize+evote.PKEY_SIZE : i*itemSize+evote.PKEY_SIZE+evote.INT_32_SIZE])
+	}
+	return results, nil
 }

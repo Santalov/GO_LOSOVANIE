@@ -36,7 +36,7 @@ type NetworkChannels struct {
 	blockVotes          chan NetworkMsg
 	kickValidatorVote   chan NetworkMsg
 	appendValidatorVote chan NetworkMsg
-	faucet			    chan NetworkMsg
+	faucet              chan NetworkMsg
 	appendViewer        chan NetworkByteMsg
 	blockAfter          chan NetworkByteMsg
 	getUtxosByPkey      chan NetworkByteMsg
@@ -318,9 +318,8 @@ func (n *Network) handleFaucet(w http.ResponseWriter, req *http.Request) {
 }
 
 func (n *Network) handleGetVoteResult(w http.ResponseWriter, req *http.Request) {
-	handleBinary(n.chs.faucet, w, req)
+	handleBinaryWithResponse(n.chs.getVoteResult, w, req)
 }
-
 
 func (n *Network) handleBlockVote(w http.ResponseWriter, req *http.Request) {
 	handleBinary(n.chs.blockVotes, w, req)

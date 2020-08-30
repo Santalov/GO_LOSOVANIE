@@ -62,7 +62,7 @@ func voteMenu(keys *evote.CryptoKeysData, n *Network, typeValue [evote.HASH_SIZE
 
 func vote(keys *evote.CryptoKeysData, n *Network) {
 	pkey := keys.PubkeyByte
-	priv := keys.PrivateKey
+	//priv := keys.PrivateKey
 	utxos, err := n.GetUtxosByPkey(pkey)
 	if err != nil {
 		if retryQuestion(n) {
@@ -72,20 +72,22 @@ func vote(keys *evote.CryptoKeysData, n *Network) {
 	//key - typeValue, value - outputs sum
 	votings := make(map[[evote.HASH_SIZE]byte]uint32)
 	for _, utxo := range utxos {
-		_, exists := votings[utxo.TypeValue]
-		if exists {
-			votings[utxo.TypeValue] += utxo.Value
-		} else {
-			votings[utxo.TypeValue] = utxo.Value
+		if utxo.TypeValue != evote.ZERO_ARRAY_HASH {
+			_, exists := votings[utxo.TypeValue]
+			if exists {
+				votings[utxo.TypeValue] += utxo.Value
+			} else {
+				votings[utxo.TypeValue] = utxo.Value
+			}
 		}
 	}
 
-	options := make([]string, 0)
+	options := make([]string, 2)
 	options[0] = "Create voting"
 	options[1] = "Enter voting id"
 	optionToId := make(map[string][evote.HASH_SIZE]byte)
 	for voteId, balance := range votings {
-		option := fmt.Sprintf("id: %v  votes: %v", voteId, balance)
+		option := fmt.Sprintf("id: %v  votes: %v", bToHex(voteId[:]), balance)
 		options = append(options, option)
 		optionToId[option] = voteId
 	}

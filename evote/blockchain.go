@@ -194,7 +194,7 @@ func (bc *Blockchain) Start() {
 			fmt.Println("get money by pkey request")
 			bc.onGetMoneyRequest(msg.data, msg.response)
 		case msg := <-bc.chs.getVoteResult:
-			fmt.Println("get money by pkey request")
+			fmt.Println("get vote result request")
 			bc.onGetVoteResult(msg.data, msg.response)
 		}
 	}

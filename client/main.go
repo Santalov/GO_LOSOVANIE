@@ -12,11 +12,11 @@ var pathToGlobalConf = flag.String("g", "", "path to global config")
 var pathToKeyPair = flag.String("k", "", "path to key pair")
 
 const (
-	BALANCE       = "balance"
-	TRANSACTIONS  = "transactions"
-	SEND          = "send"
-	FAUCET        = "faucet"
-	CREATE_VOTING = "createVoting"
+	BALANCE      = "balance"
+	TRANSACTIONS = "transactions"
+	SEND         = "send"
+	FAUCET       = "faucet"
+	VOTE         = "vote"
 )
 
 func main() {
@@ -39,11 +39,11 @@ func main() {
 	keys.SetupKeys(keyPair.Prv)
 	n.Init(hosts)
 	fmt.Println("available commands: " +
-		BALANCE + ", " + TRANSACTIONS + ", " + SEND + ", " + FAUCET + ", " + CREATE_VOTING)
+		BALANCE + ", " + TRANSACTIONS + ", " + SEND + ", " + FAUCET + ", " + VOTE)
 
 	validate := func(input string) error {
 		if input == BALANCE || input == TRANSACTIONS ||
-			input == SEND || input == FAUCET || input == CREATE_VOTING {
+			input == SEND || input == FAUCET || input == VOTE {
 			return nil
 		} else {
 			return errors.New("invalid command")
@@ -72,8 +72,8 @@ func main() {
 			send(&keys, &n)
 		case FAUCET:
 			faucet(&keys, &n)
-		case CREATE_VOTING:
-			createVoting(&keys, &n)
+		case VOTE:
+			vote(&keys, &n)
 		}
 	}
 
