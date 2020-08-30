@@ -69,16 +69,29 @@ func vote(keys *evote.CryptoKeysData, n *Network) {
 			vote(keys, n)
 		}
 	}
+	txs, err := n.GetTxsByPkey(pkey)
+	if err != nil {
+		if retryQuestion(n) {
+			vote(keys, n)
+		}
+	}
 	//key - typeValue, value - outputs sum
 	votings := make(map[[evote.HASH_SIZE]byte]uint32)
+
+	for _, tx := range txs {
+		if tx.TypeValue != evote.ZERO_ARRAY_HASH {
+			votings[tx.TypeValue] = 0
+		}
+		if tx.TypeVote != 0 {
+			var typeValue [evote.HASH_SIZE]byte
+			copy(typeValue[:], evote.Hash(tx.ToBytes()))
+			votings[typeValue] = 0
+		}
+	}
+
 	for _, utxo := range utxos {
 		if utxo.TypeValue != evote.ZERO_ARRAY_HASH {
-			_, exists := votings[utxo.TypeValue]
-			if exists {
-				votings[utxo.TypeValue] += utxo.Value
-			} else {
-				votings[utxo.TypeValue] = utxo.Value
-			}
+			votings[utxo.TypeValue] += utxo.Value
 		}
 	}
 
