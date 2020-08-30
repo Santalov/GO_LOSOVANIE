@@ -54,7 +54,7 @@ func createVoting(keys *evote.CryptoKeysData, n *Network) {
 	amountPerParticipant = uint32(amount64)
 
 	promptDuration := promptui.Prompt{
-		Label:    "Voting duration (seconds):",
+		Label:    "Voting duration (seconds)",
 		Validate: validateAmount,
 	}
 
@@ -85,11 +85,20 @@ func createVoting(keys *evote.CryptoKeysData, n *Network) {
 	}
 
 	promptParticipants := promptui.Prompt{
-		Label:    "List participants",
-		Validate: validateParticipants,
+		Label: "List participants",
+		//Validate: validateParticipants,
 	}
 
 	partisipantsStr, err := promptParticipants.Run()
+
+	if err != nil {
+		fmt.Printf("Fail: %v\n", err)
+		return
+	}
+
+	// так как Validate на 5 строчек выше вызывал экран ошибок,
+	// валидация перенесена вниз
+	err = validateParticipants(partisipantsStr)
 
 	if err != nil {
 		fmt.Printf("Fail: %v\n", err)
@@ -105,10 +114,15 @@ func createVoting(keys *evote.CryptoKeysData, n *Network) {
 		copy(pkey[:], pkeySlice)
 		outputs[pkey] = amountPerParticipant
 	}
-	utxos, err := n.GetUtxosByPkey(keys.PubkeyByte)
-	if err != nil {
-		if retryQuestion(n) {
-			createVoting(keys, n)
+	var utxos []*evote.UTXO
+	for {
+		utxos, err = n.GetUtxosByPkey(keys.PubkeyByte)
+		if err == nil {
+			break
+		} else {
+			if !retryQuestion(n) {
+				break
+			}
 		}
 	}
 	var tx evote.Transaction

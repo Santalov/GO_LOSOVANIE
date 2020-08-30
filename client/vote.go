@@ -72,11 +72,13 @@ func vote(keys *evote.CryptoKeysData, n *Network) {
 	//key - typeValue, value - outputs sum
 	votings := make(map[[evote.HASH_SIZE]byte]uint32)
 	for _, utxo := range utxos {
-		_, exists := votings[utxo.TypeValue]
-		if exists {
-			votings[utxo.TypeValue] += utxo.Value
-		} else {
-			votings[utxo.TypeValue] = utxo.Value
+		if utxo.TypeValue != evote.ZERO_ARRAY_HASH {
+			_, exists := votings[utxo.TypeValue]
+			if exists {
+				votings[utxo.TypeValue] += utxo.Value
+			} else {
+				votings[utxo.TypeValue] = utxo.Value
+			}
 		}
 	}
 
