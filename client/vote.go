@@ -52,7 +52,7 @@ func voteMenu(keys *evote.CryptoKeysData, n *Network, typeValue [evote.HASH_SIZE
 	}
 
 	if result == "Info" {
-		voteResults(keys, n, typeValue)
+		voteInfo(keys, n, typeValue)
 	} else if result == "See results" {
 		voteResults(keys, n, typeValue)
 	} else if result == "Send vote" {
