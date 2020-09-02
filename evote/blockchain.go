@@ -255,7 +255,6 @@ func (bc *Blockchain) onBlockReceiveValidator(data []byte, response chan Respons
 	}
 	var b Block
 	hash, blockLen := b.Verify(data, bc.prevBlockHash, bc.currentLeader.Pkey, bc.db)
-	fmt.Println("block len", blockLen)
 	if blockLen == ERR_BLOCK_CREATOR {
 		response <- ResponseMsg{ok: true}
 		return
@@ -285,7 +284,6 @@ func (bc *Blockchain) onBlockReceiveViewer(data []byte, response chan ResponseMs
 	var creator [PKEY_SIZE]byte
 	var b Block
 	hash, blockLen := b.Verify(data, bc.prevBlockHash, creator, bc.db)
-	fmt.Println("block len", blockLen)
 
 	if blockLen != len(data) {
 		addr := bc.activeValidators[(bc.chainSize+1)%uint64(len(bc.activeValidators))].Addr
@@ -507,7 +505,7 @@ func (bc *Blockchain) doTickPreparation() {
 
 		bc.currentLeader = bc.activeValidators[bc.genBlocksCount%uint64(len(bc.activeValidators))]
 	}
-	fmt.Println(bc.chainSize)
+	fmt.Println("current chain size = ", bc.chainSize)
 	bc.nextTickTime = bc.getTimeOfNextTick(time.Now())
 	bc.tickThisLeader <- true
 }
@@ -566,7 +564,6 @@ func (bc *Blockchain) doTickVotingProcessing() {
 		for valid, vote := range bc.blockVoting {
 			if vote == 0x01 {
 				yesVote += 1
-				bc.suspiciousValidators[valid] = 0
 			} else if vote == 0x02 {
 				noVote += 1
 			} else if valid != bc.thisValidator {
@@ -760,7 +757,6 @@ func (bc *Blockchain) getMissingBlock(host string) bool {
 		var creator [PKEY_SIZE]byte
 		var b Block
 		hash, blockLen := b.Verify(data, bc.prevBlockHash, creator, bc.db)
-		fmt.Println("block len", blockLen)
 		if blockLen != len(data) {
 			return false
 		}
@@ -773,7 +769,7 @@ func (bc *Blockchain) getMissingBlock(host string) bool {
 			panic(err)
 		}
 		bc.chainSize += 1
-		fmt.Println("current chain size is ", bc.chainSize)
+		fmt.Println("get missing block, current chain size = ", bc.chainSize)
 		// Это одни из предыдущих блоко, в nextTickTime будет время предыдущего (уже прошедшего) тика
 		bc.nextTickTime = bc.getTimeOfNextTick(time.Unix(0, int64(b.Timestamp)))
 		return true
@@ -983,6 +979,10 @@ func (bc *Blockchain) onGetUtxosByPkey(data []byte, response chan ByteResponse) 
 	}
 }
 
+/*
+input: uint32_t moneyRequest + pkey_bytes_str
+output: ok/false + err_msg
+*/
 func (bc *Blockchain) onGetMoneyRequest(data []byte, response chan ResponseMsg) {
 	if bc.validatorStatus != VALIDATOR {
 		response <- ResponseMsg{
@@ -1037,6 +1037,13 @@ func (bc *Blockchain) onGetMoneyRequest(data []byte, response chan ResponseMsg) 
 	}
 }
 
+/*
+input: 32 main_hash str
+output: pkey1 val1
+		pkey2 val2
+		...
+output not contains whitespaces
+*/
 func (bc *Blockchain) onGetVoteResult(data []byte, response chan ByteResponse) {
 	if bc.validatorStatus != VALIDATOR {
 		response <- ByteResponse{
@@ -1121,7 +1128,7 @@ func (bc *Blockchain) onGetVoteResult(data []byte, response chan ByteResponse) {
 	}
 	fmt.Println()
 
-	response <- ByteResponse{
+	response <- ByteResponse {
 		ok:   true,
 		data: resBytes,
 	}
