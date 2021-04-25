@@ -10,6 +10,19 @@ func TestDatabase(t *testing.T) {
 	var db Database
 	err := db.Init(DBNAME, DBUSER, DBPASSWORD, DBHOST, 5432)
 	assert.Nil(t, err)
+	t.Run("insert_blockz", func(t *testing.T) {
+		err := db.SaveNextBlock(&B_AND_HZ)
+		assert.Nil(t, err)
+		blocksReceived, err := db.GetBlocksByHashes([][HASH_SIZE]byte{
+			B_AND_HZ.Hash,
+		})
+		assert.Nil(t, err)
+		assert.ElementsMatch(t, []*BlocAndkHash{
+			&B_AND_HZ,
+		}, blocksReceived)
+		assert.Equal(t, blocksReceived[0].Hash, blockHash(blocksReceived[0].B))
+		assert.Equal(t, B_AND_HZ.Hash, blockHash(blocksReceived[0].B))
+	})
 	t.Run("insert_block0", func(t *testing.T) {
 		err := db.SaveNextBlock(&B_AND_H0)
 		assert.Nil(t, err)
@@ -129,8 +142,8 @@ func TestDatabase(t *testing.T) {
 		hash := ZERO_ARRAY_HASH
 		blockReceived, err := db.GetBlockAfter(hash)
 		assert.Nil(t, err)
-		assert.Equal(t, &B_AND_H0, blockReceived)
-		assert.Equal(t, B_AND_H0.Hash, blockHash(blockReceived.B))
+		assert.Equal(t, B_AND_HZ.B, blockReceived.B)
+		assert.Equal(t, B_AND_HZ.Hash, blockHash(blockReceived.B))
 	})
 	t.Run("get_undefined_first_block_0", func(t *testing.T) {
 		hash := [HASH_SIZE]byte{1, 2, 3} //несуществующий хеш

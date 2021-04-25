@@ -2,175 +2,98 @@ package evote
 
 import (
 	"bytes"
-	"encoding/json"
+	"encoding/binary"
+	"encoding/hex"
+	"errors"
 	"fmt"
+	rpctypes "github.com/tendermint/tendermint/rpc/jsonrpc/types"
 	"io/ioutil"
+	"math/rand"
 	"net/http"
-	"time"
+	"net/url"
 )
-
-const (
-	chanSize = 1000
-)
-
-// сообщение, которое будет передаваться Blockchain из серверной части сети
-// нужно, чтобы передавать бинарники с указанием на того, кто их отправил, и с каналом для ответа
-type NetworkMsg struct {
-	data     []byte
-	from     string           // адресс отправителя в формате 1.3.3.7:1488
-	response chan ResponseMsg // отсюда сервак ожидает получить результат проверки сообщения
-}
-
-type NetworkByteMsg struct {
-	data     []byte
-	from     string            // адресс отправителя в формате 1.3.3.7:1488
-	response chan ByteResponse // отсюда сервак ожидает получить результат проверки сообщения
-}
-
-type NetworkChannels struct {
-	// Из этих каналов сообщения будет забирать Blockchain
-	// класть в них сообщения будет сервер
-	blocks              chan NetworkMsg
-	txsValidator        chan NetworkMsg // транзы от других валидаторов
-	txsClient           chan NetworkMsg // транзы от клиентов
-	blockVotes          chan NetworkMsg
-	kickValidatorVote   chan NetworkMsg
-	appendValidatorVote chan NetworkMsg
-	faucet              chan NetworkMsg
-	appendViewer        chan NetworkByteMsg
-	blockAfter          chan NetworkByteMsg
-	getUtxosByPkey      chan NetworkByteMsg
-	getTxsByPkey        chan NetworkByteMsg
-	getTxsByHashes      chan NetworkByteMsg
-	getVoteResult       chan NetworkByteMsg
-}
-
-// этими сообщениями Blockchain сообщает результаты проверки
-type ResponseMsg struct {
-	ok    bool
-	error string
-}
-
-type ByteResponse struct {
-	ok    bool
-	data  []byte
-	error string
-}
 
 type Network struct {
-	chs NetworkChannels
-	// здесь мб еще поля будут
+	workingHosts []string
+	allHosts     []string
+	curHost      string
 }
 
-func (n *Network) Init() *NetworkChannels {
-
-	// определение обработчиков запросов
-	http.Handle("/info", http.HandlerFunc(n.handleInfo))
-	http.Handle("/getTxs", http.HandlerFunc(n.handleGetTxs))
-	http.Handle("/getTxsByPubKey", http.HandlerFunc(n.handleGetTxsByPubKey))
-	http.Handle("/getUTXOByPubKey", http.HandlerFunc(n.handleGetUTXOByPubKey))
-	http.Handle("/submitClientTx", http.HandlerFunc(n.handleSubmitClientTx))
-	http.Handle("/submitValidatorTx", http.HandlerFunc(n.handleSubmitValidatorTx))
-	http.Handle("/submitBlock", http.HandlerFunc(n.handleSubmitBlock))
-	http.Handle("/blockVote", http.HandlerFunc(n.handleBlockVote))
-	http.Handle("/kickValidatorVote", http.HandlerFunc(n.handleKickValidatorVote))
-	http.Handle("/appendViewer", http.HandlerFunc(n.handleAppendViewer))
-	http.Handle("/blockAfter", http.HandlerFunc(n.handleBlockAfter))
-	http.Handle("/voteAppendValidator", http.HandlerFunc(n.handleAppendValidatorVote))
-	http.Handle("/faucet", http.HandlerFunc(n.handleFaucet))
-	http.Handle("/getVoteResult", http.HandlerFunc(n.handleGetVoteResult))
-
-	n.chs = NetworkChannels{
-		make(chan NetworkMsg, chanSize),
-		make(chan NetworkMsg, chanSize),
-		make(chan NetworkMsg, chanSize),
-		make(chan NetworkMsg, chanSize),
-		make(chan NetworkMsg, chanSize),
-		make(chan NetworkMsg, chanSize),
-		make(chan NetworkMsg, chanSize),
-		make(chan NetworkByteMsg, chanSize),
-		make(chan NetworkByteMsg, chanSize),
-		make(chan NetworkByteMsg, chanSize),
-		make(chan NetworkByteMsg, chanSize),
-		make(chan NetworkByteMsg, chanSize),
-		make(chan NetworkByteMsg, chanSize),
+// Copy used to make separate instance for working in another thread
+func (n *Network) Copy() *Network {
+	workingHosts := make([]string, len(n.workingHosts))
+	copy(workingHosts, n.workingHosts)
+	allHosts := make([]string, len(n.allHosts))
+	copy(allHosts, n.allHosts)
+	return &Network{
+		workingHosts,
+		allHosts,
+		n.curHost,
 	}
-	return &n.chs
 }
 
-// Serve запускает сервер и блокирует поток, перед вызовом Serve надо вызвать Init
-func (n *Network) Serve(addr string) {
-	fmt.Println("Starting server at ", addr)
-	err := http.ListenAndServe(addr, nil)
-	panic(err)
-}
-
-func sendBinary(url string, data []byte, ch chan *http.Response) {
-	resp, err := http.Post(url, "application/octet-stream", bytes.NewReader(data))
+func (n *Network) makeBinaryPostRequest(host string, endPoint string, data []byte) (response []byte, err error) {
+	resp, err := http.Post("http://"+host+endPoint, "application/octet-stream", bytes.NewReader(data))
 	if err != nil {
-		fmt.Printf("network err: %v\n", err)
+		fmt.Println("request err: ", err)
+		return nil, err
 	} else {
 		if resp.StatusCode != http.StatusOK {
-			fmt.Println()
 			body, _ := ioutil.ReadAll(resp.Body)
-			fmt.Printf("network: server answered with error %v, body: %v\n", resp.Status, string(body))
+			fmt.Printf("validator answered with error %v, body: %v\n", resp.Status, string(body))
+			return nil, fmt.Errorf(string(body))
+		} else {
+			body, err := ioutil.ReadAll(resp.Body)
+			if err != nil {
+				fmt.Println("request err: body cannot be read, err:")
+				return nil, err
+			}
+			return body, nil
 		}
 	}
-	ch <- resp
 }
 
-func (n *Network) sendBinaryToAll(hosts []string, data []byte, endpoint string) {
-	responses := make(chan *http.Response, len(hosts))
-	for _, host := range hosts {
-		go sendBinary("http://"+host+endpoint, data, responses)
+func (n *Network) makeGetRequest(host string, path string, params url.Values) (response []byte, err error) {
+	rawQuery := ""
+	if params != nil {
+		rawQuery = params.Encode()
 	}
-	for range hosts {
-		<-responses
-	}
-}
-
-func (n *Network) SendBlockToAll(hosts []string, data []byte) {
-	n.sendBinaryToAll(hosts, data, "/submitBlock")
-}
-
-func (n *Network) SendTxToAll(hosts []string, data []byte) {
-	n.sendBinaryToAll(hosts, data, "/submitValidatorTx")
-}
-
-func (n *Network) SendVoteToAll(hosts []string, data []byte) {
-	n.sendBinaryToAll(hosts, data, "/blockVote")
-}
-
-func (n *Network) SendVoteAppendValidatorMsgToAll(hosts []string, data []byte) {
-	n.sendBinaryToAll(hosts, data, "/voteAppendValidator")
-}
-
-func (n *Network) SendKickMsgToAll(hosts []string, data []byte) {
-	n.sendBinaryToAll(hosts, data, "/kickValidatorVote")
-}
-
-func makeInfoRequest(host string, response chan string) {
-	resp, err := http.Get("http://" + host + "/info")
+	u := &url.URL{Scheme: "http", Host: host, Path: path, RawQuery: rawQuery}
+	fmt.Println("request url:", u.String())
+	resp, err := http.Get(u.String())
 	if err != nil {
-		fmt.Println("network err: ", err)
+		fmt.Println("request err: ", err)
+		return nil, err
+	} else {
+		if resp.StatusCode != http.StatusOK {
+			body, _ := ioutil.ReadAll(resp.Body)
+			fmt.Printf("validator answered with error %v, body: %v\n", resp.Status, string(body))
+			return nil, fmt.Errorf(string(body))
+		} else {
+			body, err := ioutil.ReadAll(resp.Body)
+			if err != nil {
+				fmt.Println("request err: body cannot be read, err:")
+				return nil, err
+			}
+			return body, nil
+		}
+	}
+}
+
+func (n *Network) makeInfoRequest(host string, response chan string) {
+	resp, err := n.makeGetRequest(host, "/abci_info", nil)
+	if err != nil {
+		fmt.Printf("network: server answered with error %v, body: %v\n", err, string(resp))
 		response <- ""
 	} else {
-		if resp.StatusCode != http.StatusOK {
-			fmt.Println()
-			body, _ := ioutil.ReadAll(resp.Body)
-			fmt.Printf("network: server answered with error %v, body: %v\n", resp.Status, string(body))
-			response <- ""
-		} else {
-			response <- host
-		}
+		response <- host
 	}
 }
 
-// вернет массив адресов живых хостов
-func (n *Network) PingHosts(hosts []string) (alive []string) {
+func (n *Network) pingHosts(hosts []string) (alive []string) {
 	responses := make(chan string, len(hosts))
 	for _, host := range hosts {
-		go makeInfoRequest(host, responses)
+		go n.makeInfoRequest(host, responses)
 	}
 	for _ = range hosts {
 		h := <-responses
@@ -181,162 +104,171 @@ func (n *Network) PingHosts(hosts []string) (alive []string) {
 	return
 }
 
-// отправит запрос на /blockAfter
-func (n *Network) GetBlockAfter(host string, hash [HASH_SIZE]byte) (block []byte, err error) {
-	resp, err := http.Post("http://"+host+"/blockAfter", "application/octet-stream", bytes.NewReader(hash[:]))
-	if err != nil {
-		fmt.Printf("network err: %v\n", err)
-		return nil, err
-	} else {
-		body, _ := ioutil.ReadAll(resp.Body)
-		if resp.StatusCode != http.StatusOK {
-			fmt.Printf("network: server answered with error %v, body: %v\n", resp.Status, string(body))
-			return nil, fmt.Errorf(string(body))
+func (n *Network) SelectNextHost() {
+	clearedHosts := make([]string, 0)
+	for i, host := range n.workingHosts {
+		if host != n.curHost {
+			// remove not working host
+			clearedHosts = append(clearedHosts, host)
 		} else {
-			block = body
-			return block, nil
+			// select next host
+			n.curHost = n.workingHosts[(i+1)%len(n.workingHosts)]
 		}
+	}
+	n.workingHosts = clearedHosts
+	if len(n.workingHosts) == 0 {
+		n.workingHosts = n.pingHosts(n.allHosts)
+		if len(n.workingHosts) == 0 {
+			panic("No available validators. Client need a validator to work with")
+		}
+	}
+	n.curHost = n.workingHosts[rand.Int()%len(n.workingHosts)]
+}
+
+func (n *Network) createWorkingHosts() {
+	n.workingHosts = n.pingHosts(n.allHosts)
+	fmt.Println(len(n.workingHosts), "validators online")
+	if len(n.workingHosts) == 0 {
+		panic("No available validators. Client need a validator to work with")
 	}
 }
 
-func (n *Network) SendAppendViewerMsg(host string, data []byte) (pkey []byte, err error) {
-	resp, err := http.Post("http://"+host+"/appendViewer", "application/octet-stream", bytes.NewReader(data))
-	if err != nil {
-		fmt.Printf("network err: %v\n", err)
-		return nil, err
-	} else {
-		body, _ := ioutil.ReadAll(resp.Body)
-		if resp.StatusCode != http.StatusOK {
-			fmt.Printf("network: server answered with error %v, body: %v\n", resp.Status, string(body))
-			return nil, fmt.Errorf(string(body))
+func (n *Network) Init(allHosts []string) {
+	n.allHosts = allHosts
+	n.workingHosts = allHosts
+	n.curHost = n.workingHosts[rand.Int()%len(n.workingHosts)]
+}
+
+func (n *Network) PingAll() {
+	n.createWorkingHosts()
+}
+
+func parseTrans(data []byte) ([]*Transaction, error) {
+	transSize := binary.LittleEndian.Uint32(data[:INT_32_SIZE])
+	offset := INT_32_SIZE
+	txs := make([]*Transaction, 0)
+	for i := 0; i < int(transSize); i++ {
+		tx := new(Transaction)
+		txLen := tx.FromBytes(data[offset:])
+		if txLen > 0 {
+			offset += txLen
+			txs = append(txs, tx)
 		} else {
-			pkey = body
-			return pkey, nil
+			fmt.Println("incorrect transaction in response from validator")
+			return nil, fmt.Errorf("incorrect transaction in response from validator")
 		}
 	}
+	return txs, nil
 }
 
-var successResp = []byte("{\"success\":true}")
+func (n *Network) BroadcastTxSync(tx []byte) (*rpctypes.RPCResponse, error) {
+	respRaw, err := n.makeGetRequest(n.curHost, "/broadcast_tx_sync", url.Values{"tx": {"0x" + hex.EncodeToString(tx)}})
+	if err != nil {
+		return nil, err
+	}
+	response := &rpctypes.RPCResponse{}
+	err = response.UnmarshalJSON(respRaw)
+	if err != nil {
+		return nil, err
+	}
+	return response, err
+}
 
-// вспомогательные функции
+func (n *Network) GetTxsByHashes(hashes [][HASH_SIZE]byte) ([]*Transaction, error) {
+	reqData := make([]byte, len(hashes)*HASH_SIZE+INT_32_SIZE)
+	binary.LittleEndian.PutUint32(reqData[:INT_32_SIZE], uint32(len(hashes)))
+	offset := INT_32_SIZE
+	for _, h := range hashes {
+		copy(reqData[offset:offset+HASH_SIZE], h[:])
+		offset += HASH_SIZE
+	}
+	data, err := n.makeBinaryPostRequest(n.curHost, "/getTxs", reqData)
+	if err != nil {
+		return nil, err
+	}
+	return parseTrans(data)
+}
 
-func response(w http.ResponseWriter, resp ResponseMsg) {
-	if !resp.ok {
-		http.Error(w, resp.error, http.StatusBadRequest)
+func (n *Network) GetTxsByPkey(pkey [PKEY_SIZE]byte) ([]*Transaction, error) {
+	data, err := n.makeBinaryPostRequest(n.curHost, "/getTxsByPubKey", pkey[:])
+	if err != nil {
+		return nil, err
+	}
+	return parseTrans(data)
+}
+
+func (n *Network) GetUtxosByPkey(pkey [PKEY_SIZE]byte) ([]*UTXO, error) {
+	data, err := n.makeBinaryPostRequest(n.curHost, "/getUTXOByPubKey", pkey[:])
+	if err != nil {
+		return nil, err
+	}
+	utxosSize := binary.LittleEndian.Uint32(data[:INT_32_SIZE])
+	offset := INT_32_SIZE
+	utxos := make([]*UTXO, 0)
+	for i := 0; i < int(utxosSize); i++ {
+		utxo := new(UTXO)
+		retCode := utxo.FromBytes(data[offset : offset+UTXO_SIZE])
+		if retCode != OK {
+			fmt.Println("incorrect utxo from validator")
+			return nil, fmt.Errorf("incorrect utxo from validator")
+		}
+		utxos = append(utxos, utxo)
+		offset += UTXO_SIZE
+	}
+	return utxos, nil
+}
+
+func (n *Network) SubmitTx(tx []byte) error {
+	resp, err := http.Post("http://"+n.curHost+"/submitClientTx", "application/octet-stream", bytes.NewReader(tx))
+	if err != nil {
+		fmt.Println("request err: ", err)
+		return err
 	} else {
-		_, err := fmt.Fprint(w, successResp)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		if resp.StatusCode != http.StatusOK {
+			body, _ := ioutil.ReadAll(resp.Body)
+			fmt.Printf("validator answered with error %v, body: %v\n", resp.Status, string(body))
+			return fmt.Errorf(string(body))
+		} else {
+			return nil
 		}
 	}
 }
 
-// обработчики для запросов от клиентов
-
-func (n *Network) handleInfo(w http.ResponseWriter, _ *http.Request) {
-	infoMsg := struct {
-		Time time.Time `json:"time"`
-	}{}
-	msg, err := json.Marshal(&infoMsg)
+func (n *Network) Faucet(amount uint32, pkey [PKEY_SIZE]byte) error {
+	data := make([]byte, INT_32_SIZE+PKEY_SIZE)
+	binary.LittleEndian.PutUint32(data[:INT_32_SIZE], amount)
+	copy(data[INT_32_SIZE:], pkey[:])
+	resp, err := http.Post("http://"+n.curHost+"/faucet", "application/octet-stream", bytes.NewReader(data))
 	if err != nil {
-		http.Error(w, "server error"+err.Error(), http.StatusServiceUnavailable)
-		return
-	}
-	_, err = fmt.Fprint(w, msg)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusServiceUnavailable)
-		return
-	}
-}
-
-func handleBinary(msgChan chan NetworkMsg, w http.ResponseWriter, req *http.Request) {
-	data, err := ioutil.ReadAll(req.Body)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusServiceUnavailable)
-	}
-	ch := make(chan ResponseMsg)
-	msgChan <- NetworkMsg{
-		data:     data,
-		from:     req.Host,
-		response: ch,
-	}
-	resp := <-ch
-	response(w, resp)
-}
-
-func handleBinaryWithResponse(msgChan chan NetworkByteMsg, w http.ResponseWriter, req *http.Request) {
-	data, err := ioutil.ReadAll(req.Body)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusServiceUnavailable)
-	}
-	ch := make(chan ByteResponse)
-	msgChan <- NetworkByteMsg{
-		data:     data,
-		from:     req.Host,
-		response: ch,
-	}
-	resp := <-ch
-	if !resp.ok {
-		http.Error(w, resp.error, http.StatusBadRequest)
+		fmt.Println("request err: ", err)
+		return err
 	} else {
-		_, err := w.Write(resp.data)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		if resp.StatusCode != http.StatusOK {
+			body, _ := ioutil.ReadAll(resp.Body)
+			fmt.Printf("validator answered with error %v, body: %v\n", resp.Status, string(body))
+			return fmt.Errorf(string(body))
+		} else {
+			return nil
 		}
 	}
 }
 
-func (n *Network) handleGetTxs(w http.ResponseWriter, req *http.Request) {
-	handleBinaryWithResponse(n.chs.getTxsByHashes, w, req)
-}
-
-func (n *Network) handleGetTxsByPubKey(w http.ResponseWriter, req *http.Request) {
-	handleBinaryWithResponse(n.chs.getTxsByPkey, w, req)
-}
-
-func (n *Network) handleGetUTXOByPubKey(w http.ResponseWriter, req *http.Request) {
-	handleBinaryWithResponse(n.chs.getUtxosByPkey, w, req)
-}
-
-func (n *Network) handleSubmitClientTx(w http.ResponseWriter, req *http.Request) {
-	handleBinary(n.chs.txsClient, w, req)
-}
-
-// обработчики запросов от других валидаторов
-// отличаются тем, что работают с бинарями, а так же логикой
-
-func (n *Network) handleSubmitValidatorTx(w http.ResponseWriter, req *http.Request) {
-	handleBinary(n.chs.txsValidator, w, req)
-}
-
-func (n *Network) handleSubmitBlock(w http.ResponseWriter, req *http.Request) {
-	handleBinary(n.chs.blocks, w, req)
-}
-
-func (n *Network) handleFaucet(w http.ResponseWriter, req *http.Request) {
-	handleBinary(n.chs.faucet, w, req)
-}
-
-func (n *Network) handleGetVoteResult(w http.ResponseWriter, req *http.Request) {
-	handleBinaryWithResponse(n.chs.getVoteResult, w, req)
-}
-
-func (n *Network) handleBlockVote(w http.ResponseWriter, req *http.Request) {
-	handleBinary(n.chs.blockVotes, w, req)
-}
-
-func (n *Network) handleAppendValidatorVote(w http.ResponseWriter, req *http.Request) {
-	handleBinary(n.chs.appendValidatorVote, w, req)
-}
-
-func (n *Network) handleKickValidatorVote(w http.ResponseWriter, req *http.Request) {
-	handleBinary(n.chs.kickValidatorVote, w, req)
-}
-
-func (n *Network) handleAppendViewer(w http.ResponseWriter, req *http.Request) {
-	handleBinaryWithResponse(n.chs.appendViewer, w, req)
-}
-
-func (n *Network) handleBlockAfter(w http.ResponseWriter, req *http.Request) {
-	handleBinaryWithResponse(n.chs.blockAfter, w, req)
+func (n *Network) VoteResults(hash [HASH_SIZE]byte) (map[[PKEY_SIZE]byte]uint32, error) {
+	data, err := n.makeBinaryPostRequest(n.curHost, "/getVoteResult", hash[:])
+	if err != nil {
+		return nil, err
+	}
+	itemSize := PKEY_SIZE + INT_32_SIZE
+	resLen := len(data) / itemSize
+	if len(data)%itemSize != 0 {
+		return nil, errors.New("incorrect result len")
+	}
+	results := make(map[[PKEY_SIZE]byte]uint32)
+	for i := 0; i < resLen; i++ {
+		var candidate [PKEY_SIZE]byte
+		copy(candidate[:], data[i*itemSize:i*itemSize+PKEY_SIZE])
+		results[candidate] =
+			binary.LittleEndian.Uint32(data[i*itemSize+PKEY_SIZE : i*itemSize+PKEY_SIZE+INT_32_SIZE])
+	}
+	return results, nil
 }

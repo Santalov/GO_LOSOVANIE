@@ -5,7 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"go.cypherpunks.ru/gogost/v4/gost3410"
+	"go.cypherpunks.ru/gogost/v5/gost3410"
 	"math/big"
 )
 
@@ -18,7 +18,7 @@ type CryptoKeysData struct {
 }
 
 func (keys *CryptoKeysData) SetupKeys(prv []byte) {
-	keys.privateKey, _ = gost3410.NewPrivateKey(curve, gost3410.Mode2001, prv)
+	keys.privateKey, _ = gost3410.NewPrivateKey(curve, prv)
 	keys.publickKey, _ = keys.privateKey.PublicKey()
 	var pkeyX = keys.publickKey.Raw()[:32]
 	var tmp = make([]byte, 1)
@@ -30,16 +30,16 @@ func (keys *CryptoKeysData) SetupKeys(prv []byte) {
 	copy(keys.pubKeyByte[:], append(tmp, pkeyX[:]...))
 }
 
-type KeyPair struct {
+type PrivateKeyJson struct {
 	Pkey string `json:"pkey"`
 	Prv  string `json:"prv"`
 }
 
 func main() {
-	prv, _ := gost3410.GenPrivateKey(gost3410.CurveIdGostR34102001CryptoProAParamSet(), gost3410.Mode2001, rand.Reader)
+	prv, _ := gost3410.GenPrivateKey(gost3410.CurveIdGostR34102001CryptoProAParamSet(), rand.Reader)
 	var keys CryptoKeysData
 	keys.SetupKeys(prv.Raw())
-	keyPair := KeyPair{
+	keyPair := PrivateKeyJson{
 		Pkey: hex.EncodeToString(keys.pubKeyByte[:]),
 		Prv:  hex.EncodeToString(keys.privateKey.Raw()),
 	}

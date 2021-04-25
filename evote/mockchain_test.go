@@ -74,7 +74,7 @@ var keyPairs = []keyPair{
 	},
 }
 
-func makeCoinbaseTx(val uint32, pkeyTo [PKEY_SIZE]byte, blockNumber uint32) *Transaction {
+func makeCoinbaseTx(val uint32, pkeyTo [PKEY_SIZE]byte, rewardForBlock [HASH_SIZE]byte) *Transaction {
 	return &Transaction{
 		InputSize:  0,
 		Inputs:     nil,
@@ -85,8 +85,8 @@ func makeCoinbaseTx(val uint32, pkeyTo [PKEY_SIZE]byte, blockNumber uint32) *Tra
 				PkeyTo: pkeyTo,
 			},
 		},
-		Duration:  blockNumber,
-		HashLink:  ZERO_ARRAY_HASH,
+		Duration:  0,
+		HashLink:  rewardForBlock,
 		Signature: randSig(),
 		TypeVote:  0,
 		TypeValue: ZERO_ARRAY_HASH,
@@ -114,25 +114,39 @@ func appendHashes(txs []*Transaction) []TransAndHash {
 	return res
 }
 
-var COINBASE_TXS = []*Transaction{
-	makeCoinbaseTx(1000, keyPairs[0].pub, 0),
-	makeCoinbaseTx(2000, keyPairs[0].pub, 1),
-	makeCoinbaseTx(3000, keyPairs[1].pub, 2),
-	makeCoinbaseTx(3000, keyPairs[1].pub, 3),
-	makeCoinbaseTx(3000, keyPairs[6].pub, 4),
+// Z-block, because of coinbase tx update
+// just a regular block, i use letter z to avoid changing enumeration
+var TXS_BLOCKZ = []*Transaction{}
+
+var BLOCKZ = Block{
+	PrevBlockHash: ZERO_ARRAY_HASH,
+	MerkleTree:    randHash(),
+	Timestamp:     uint64(time.Now().Add(-10 * time.Second).UnixNano()),
+	TransSize:     uint32(len(TXS_BLOCKZ)),
+	Trans:         appendHashes(TXS_BLOCKZ),
+	proposerPkey:  keyPairs[0].pub,
 }
 
 var TXS_BLOCK0 = []*Transaction{
-	COINBASE_TXS[0],
+	makeCoinbaseTx(1000, keyPairs[0].pub, blockHash(&BLOCKZ)),
+}
+
+var BLOCK0 = Block{
+	PrevBlockHash: blockHash(&BLOCKZ),
+	MerkleTree:    randHash(),
+	Timestamp:     uint64(time.Now().UnixNano()),
+	TransSize:     uint32(len(TXS_BLOCK0)),
+	Trans:         appendHashes(TXS_BLOCK0),
+	proposerPkey:  keyPairs[0].pub,
 }
 
 var TXS_BLOCK1 = []*Transaction{
-	COINBASE_TXS[1],
+	makeCoinbaseTx(2000, keyPairs[0].pub, blockHash(&BLOCK0)),
 	{
 		InputSize: 1,
 		Inputs: []TransactionInput{
 			{
-				PrevId:   txHash(COINBASE_TXS[0]),
+				PrevId:   txHash(TXS_BLOCK0[0]),
 				OutIndex: 0,
 			},
 		},
@@ -155,8 +169,17 @@ var TXS_BLOCK1 = []*Transaction{
 	},
 }
 
+var BLOCK1 = Block{
+	PrevBlockHash: blockHash(&BLOCK0),
+	MerkleTree:    randHash(),
+	Timestamp:     uint64(time.Now().Add(10 * time.Second).UnixNano()),
+	TransSize:     uint32(len(TXS_BLOCK1)),
+	Trans:         appendHashes(TXS_BLOCK1),
+	proposerPkey:  keyPairs[1].pub,
+}
+
 var TXS_BLOCK2 = []*Transaction{
-	COINBASE_TXS[2],
+	makeCoinbaseTx(3000, keyPairs[1].pub, blockHash(&BLOCK1)),
 	{
 		InputSize: 2,
 		Inputs: []TransactionInput{
@@ -188,8 +211,17 @@ var TXS_BLOCK2 = []*Transaction{
 	},
 }
 
+var BLOCK2 = Block{
+	PrevBlockHash: blockHash(&BLOCK1),
+	MerkleTree:    randHash(),
+	Timestamp:     uint64(time.Now().Add(20 * time.Second).UnixNano()),
+	TransSize:     uint32(len(TXS_BLOCK2)),
+	Trans:         appendHashes(TXS_BLOCK2),
+	proposerPkey:  keyPairs[1].pub,
+}
+
 var TXS_BLOCK3 = []*Transaction{
-	COINBASE_TXS[3],
+	makeCoinbaseTx(3000, keyPairs[1].pub, blockHash(&BLOCK2)),
 	{ // транза создания голосования
 		InputSize: 1,
 		Inputs: []TransactionInput{
@@ -220,8 +252,17 @@ var TXS_BLOCK3 = []*Transaction{
 	},
 }
 
+var BLOCK3 = Block{
+	PrevBlockHash: blockHash(&BLOCK2),
+	MerkleTree:    randHash(),
+	Timestamp:     uint64(time.Now().Add(30 * time.Second).UnixNano()),
+	TransSize:     uint32(len(TXS_BLOCK3)),
+	Trans:         appendHashes(TXS_BLOCK3),
+	proposerPkey:  keyPairs[6].pub,
+}
+
 var TXS_BLOCK4 = []*Transaction{
-	COINBASE_TXS[4],
+	makeCoinbaseTx(3000, keyPairs[6].pub, blockHash(&BLOCK3)),
 	{ // траза голосвания
 		InputSize: 1,
 		Inputs: []TransactionInput{
@@ -244,44 +285,18 @@ var TXS_BLOCK4 = []*Transaction{
 	},
 }
 
-var BLOCK0 = Block{
-	PrevBlockHash: ZERO_ARRAY_HASH,
-	MerkleTree:    randHash(),
-	Timestamp:     uint64(time.Now().UnixNano()),
-	TransSize:     uint32(len(TXS_BLOCK0)),
-	Trans:         appendHashes(TXS_BLOCK0),
-}
-
-var BLOCK1 = Block{
-	PrevBlockHash: blockHash(&BLOCK0),
-	MerkleTree:    randHash(),
-	Timestamp:     uint64(time.Now().Add(10 * time.Second).UnixNano()),
-	TransSize:     uint32(len(TXS_BLOCK1)),
-	Trans:         appendHashes(TXS_BLOCK1),
-}
-
-var BLOCK2 = Block{
-	PrevBlockHash: blockHash(&BLOCK1),
-	MerkleTree:    randHash(),
-	Timestamp:     uint64(time.Now().Add(20 * time.Second).UnixNano()),
-	TransSize:     uint32(len(TXS_BLOCK2)),
-	Trans:         appendHashes(TXS_BLOCK2),
-}
-
-var BLOCK3 = Block{
-	PrevBlockHash: blockHash(&BLOCK2),
-	MerkleTree:    randHash(),
-	Timestamp:     uint64(time.Now().Add(30 * time.Second).UnixNano()),
-	TransSize:     uint32(len(TXS_BLOCK3)),
-	Trans:         appendHashes(TXS_BLOCK3),
-}
-
 var BLOCK4 = Block{
 	PrevBlockHash: blockHash(&BLOCK3),
 	MerkleTree:    randHash(),
 	Timestamp:     uint64(time.Now().Add(30 * time.Second).UnixNano()),
 	TransSize:     uint32(len(TXS_BLOCK4)),
 	Trans:         appendHashes(TXS_BLOCK4),
+	proposerPkey:  keyPairs[6].pub,
+}
+
+var B_AND_HZ = BlocAndkHash{
+	B:    &BLOCKZ,
+	Hash: blockHash(&BLOCKZ),
 }
 
 var B_AND_H0 = BlocAndkHash{

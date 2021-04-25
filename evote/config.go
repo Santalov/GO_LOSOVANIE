@@ -4,98 +4,70 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"io/ioutil"
-	"time"
 )
 
-type globalConfigRaw struct {
-	Validators []struct {
-		Pkey string `json:"Pkey"`
-		Addr string `json:"Addr"`
-	} `json:"validators"`
-	BlockAppendTime time.Duration `json:"block_append_time"`
-	BlockVotingTime time.Duration `json:"block_voting_time"`
-	JustWaitingTime time.Duration `json:"just_waiting_time"`
+type ValidatorJson struct {
+	GolosovaniePkey   string `json:"golosovanie_pkey"`
+	TendermintAddress string `json:"tendermint_address"`
+	IpAndPort         string `json:"ip_and_port"`
 }
 
-type localConfigRaw struct {
-	Pkey string `json:"Pkey"`
+type ValidatorsSetJson struct {
+	Validators []*ValidatorJson `json:"validators"`
+}
+
+type PrivateKeyJson struct {
+	Pkey string `json:"pkey"`
 	Prv  string `json:"prv"`
-	Addr string `json:"Addr"`
 }
 
-type GlobalConfig struct {
-	Validators      []*ValidatorNode
-	BlockAppendTime time.Duration
-	BlockVotingTime time.Duration
-	JustWaitingTime time.Duration
-}
-
-type LocalConfig struct {
-	Pkey [PKEY_SIZE]byte
-	Prv  []byte
-	Addr string
-}
-
-func LoadConfig(pathToGlobalConfig, pathToLocalConfig string) (*GlobalConfig, *LocalConfig, error) {
-	gConf, err1 := LoadGlobalConfig(pathToGlobalConfig)
-	lConf, err2 := LoadLocalConfig(pathToLocalConfig)
-	if err1 != nil {
-		return nil, nil, err1
-	}
-	if err2 != nil {
-		return nil, nil, err2
-	}
-	return gConf, lConf, nil
-}
-
-func LoadLocalConfig(pathToLocalConfig string) (*LocalConfig, error) {
-	local, err := ioutil.ReadFile(pathToLocalConfig)
+func LoadValidators(pathToValidatorsKeys string) ([]*ValidatorNode, error) {
+	data, err := ioutil.ReadFile(pathToValidatorsKeys)
 	if err != nil {
 		return nil, err
 	}
-	var lConfRaw localConfigRaw
-	err = json.Unmarshal(local, &lConfRaw)
+	var validatorsRaw ValidatorsSetJson
+	err = json.Unmarshal(data, &validatorsRaw)
 	if err != nil {
 		return nil, err
 	}
-	var lConf LocalConfig
-	myPkey, err := hex.DecodeString(lConfRaw.Pkey)
-	if err != nil {
-		return nil, err
-	}
-	myPrv, err := hex.DecodeString(lConfRaw.Prv)
-	if err != nil {
-		return nil, err
-	}
-	copy(lConf.Pkey[:], myPkey)
-	lConf.Prv = myPrv
-	lConf.Addr = lConfRaw.Addr
-	return &lConf, nil
-}
-
-func LoadGlobalConfig(pathToGlobalConfig string) (*GlobalConfig, error) {
-	global, err := ioutil.ReadFile(pathToGlobalConfig)
-	if err != nil {
-		return nil, err
-	}
-	var gConfRaw globalConfigRaw
-	err = json.Unmarshal(global, &gConfRaw)
-	if err != nil {
-		return nil, err
-	}
-	var gConf GlobalConfig
-	for _, validatorRaw := range gConfRaw.Validators {
-		pkey, err := hex.DecodeString(validatorRaw.Pkey)
+	validators := make([]*ValidatorNode, 0)
+	for _, v := range validatorsRaw.Validators {
+		addrSlice, err := hex.DecodeString(v.TendermintAddress)
 		if err != nil {
 			return nil, err
 		}
-		validator := &ValidatorNode{}
-		copy(validator.Pkey[:], pkey)
-		validator.Addr = validatorRaw.Addr
-		gConf.Validators = append(gConf.Validators, validator)
-		gConf.BlockAppendTime = gConfRaw.BlockAppendTime
-		gConf.BlockVotingTime = gConfRaw.BlockVotingTime
-		gConf.JustWaitingTime = gConfRaw.JustWaitingTime
+		pkeySlice, err := hex.DecodeString(v.GolosovaniePkey)
+		if err != nil {
+			return nil, err
+		}
+		var addr [TM_ADDR_SIZE]byte
+		copy(addr[:], addrSlice)
+		var pkey [PKEY_SIZE]byte
+		copy(pkey[:], pkeySlice)
+		node := &ValidatorNode{
+			Pkey:           pkey,
+			IpAndPort:      v.IpAndPort,
+			TendermintAddr: addr,
+		}
+		validators = append(validators, node)
 	}
-	return &gConf, nil
+	return validators, nil
+}
+
+func LoadPrivateKey(pathToPrivateKey string) ([]byte, error) {
+	data, err := ioutil.ReadFile(pathToPrivateKey)
+	if err != nil {
+		return nil, err
+	}
+	var keysRaw PrivateKeyJson
+	err = json.Unmarshal(data, &keysRaw)
+	if err != nil {
+		return nil, err
+	}
+	prv, err := hex.DecodeString(keysRaw.Prv)
+	if err != nil {
+		return nil, err
+	}
+	return prv, nil
 }

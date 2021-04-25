@@ -161,10 +161,11 @@ func (d *Database) SaveNextBlock(block *BlocAndkHash) error {
 		return err
 	}
 	_, err = dbTx.Exec(
-		`INSERT INTO block (blockHash, PrevBlockHash, MerkleTree, Timestamp) VALUES ($1, $2, $3, $4)`,
+		`INSERT INTO block (blockHash, PrevBlockHash, MerkleTree, proposerPkey, Timestamp) VALUES ($1, $2, $3, $4, $5)`,
 		block.Hash[:],
 		hashToSlice(block.B.PrevBlockHash),
 		block.B.MerkleTree[:],
+		block.B.proposerPkey[:],
 		block.B.Timestamp,
 	)
 	if err != nil {
@@ -226,14 +227,14 @@ func (d *Database) SaveNextBlock(block *BlocAndkHash) error {
 	return err
 }
 
-// функция может не найти некоторые блоки (если их нет), но ошибки не будет
+// GetBlocksByHashes функция может не найти некоторые блоки (если их нет), но ошибки не будет
 // так же эти блоке не появятся в возращаемом срезе
 func (d *Database) GetBlocksByHashes(blockHashes [][HASH_SIZE]byte) ([]*BlocAndkHash, error) {
 	dbTx, err := d.db.Begin()
 	if err != nil {
 		return nil, err
 	}
-	blocksQuery := "SELECT block.blockhash, block.PrevBlockHash, block.merkletree, block.Timestamp " +
+	blocksQuery := "SELECT block.blockhash, block.PrevBlockHash, block.merkletree, block.proposerPkey, block.Timestamp " +
 		"FROM block WHERE block.blockhash in (" + buildInLookup(1, len(blockHashes)+1) + ")"
 	blockQueryArgs := make([]interface{}, len(blockHashes))
 	for i := range blockHashes {
@@ -250,8 +251,8 @@ func (d *Database) GetBlocksByHashes(blockHashes [][HASH_SIZE]byte) ([]*BlocAndk
 		b := new(Block)
 		blockAndHash.B = b
 		// создание срезов постгри не поддерживает массивы
-		var hash, prevBlockHash, merkleTree []byte
-		err := blockRows.Scan(&hash, &prevBlockHash, &merkleTree, &b.Timestamp)
+		var hash, prevBlockHash, merkleTree, proposerPkey []byte
+		err := blockRows.Scan(&hash, &prevBlockHash, &merkleTree, &proposerPkey, &b.Timestamp)
 		if err != nil {
 			_ = dbTx.Rollback()
 			return nil, err
@@ -259,6 +260,7 @@ func (d *Database) GetBlocksByHashes(blockHashes [][HASH_SIZE]byte) ([]*BlocAndk
 		copy(blockAndHash.Hash[:], hash)
 		b.PrevBlockHash = sliceToHash(prevBlockHash)
 		copy(b.MerkleTree[:], merkleTree)
+		copy(b.proposerPkey[:], proposerPkey)
 		blocks = append(blocks, blockAndHash)
 	}
 	err = blockRows.Close()
@@ -295,6 +297,20 @@ func (d *Database) GetBlocksByHashes(blockHashes [][HASH_SIZE]byte) ([]*BlocAndk
 	return blocks, nil
 }
 
+func (d *Database) GetBlockByHash(hash [HASH_SIZE]byte) (*BlocAndkHash, error) {
+	blocks, err := d.GetBlocksByHashes([][HASH_SIZE]byte{hash})
+	if err != nil {
+		return nil, err
+	}
+	if len(blocks) < 1 {
+		return nil, nil
+	} else if len(blocks) == 1 {
+		return blocks[0], nil
+	} else {
+		panic("got too much blocks")
+	}
+}
+
 func (d *Database) GetTxByHash(hash [HASH_SIZE]byte) (*Transaction, error) {
 	transAndHash, err := d.GetTxsByHashes([][HASH_SIZE]byte{hash})
 	if err != nil {
@@ -309,7 +325,7 @@ func (d *Database) GetTxByHash(hash [HASH_SIZE]byte) (*Transaction, error) {
 	}
 }
 
-// не все транзы из перечисленных в txHashes могут быть в ответе
+// GetTxsByHashes не все транзы из перечисленных в txHashes могут быть в ответе
 // (если таких транз нет в бд)
 func (d *Database) GetTxsByHashes(txHashes [][HASH_SIZE]byte) ([]TransAndHash, error) {
 	dbTx, err := d.db.Begin()
@@ -594,7 +610,7 @@ func (d *Database) GetUTXOSByTypeValue(typeValue [HASH_SIZE]byte) ([]*UTXO, erro
 	)
 }
 
-// если следующего блока нет, ошибки не будет, вернется nil, nil
+// GetBlockAfter если следующего блока нет, ошибки не будет, вернется nil, nil
 func (d *Database) GetBlockAfter(blockHash [HASH_SIZE]byte) (*BlocAndkHash, error) {
 	dbTx, err := d.db.Begin()
 	if err != nil {
@@ -603,14 +619,14 @@ func (d *Database) GetBlockAfter(blockHash [HASH_SIZE]byte) (*BlocAndkHash, erro
 	var blockRow *sql.Rows
 	if blockHash != ZERO_ARRAY_HASH {
 		blockRow, err = dbTx.Query(
-			`SELECT block.blockhash, block.PrevBlockHash, block.merkletree, block.Timestamp 
+			`SELECT block.blockhash, block.PrevBlockHash, block.merkletree, block.proposerPkey, block.Timestamp 
 			FROM block WHERE block.PrevBlockHash = $1`,
 			blockHash[:],
 		)
 	} else {
 		// получение первого блока
 		blockRow, err = dbTx.Query(
-			`SELECT block.blockhash, block.PrevBlockHash, block.merkletree, block.Timestamp 
+			`SELECT block.blockhash, block.PrevBlockHash, block.merkletree, block.proposerPkey, block.Timestamp 
 			FROM block WHERE block.PrevBlockHash IS NULL`,
 		)
 	}
@@ -622,8 +638,8 @@ func (d *Database) GetBlockAfter(blockHash [HASH_SIZE]byte) (*BlocAndkHash, erro
 	b := new(Block)
 	blockAndHash.B = b
 	if blockRow.Next() {
-		var hash, prevBlockHash, merkleTree []byte
-		err := blockRow.Scan(&hash, &prevBlockHash, &merkleTree, &b.Timestamp)
+		var hash, prevBlockHash, merkleTree, proposerPkey []byte
+		err := blockRow.Scan(&hash, &prevBlockHash, &merkleTree, &proposerPkey, &b.Timestamp)
 		if err != nil {
 			_ = dbTx.Rollback()
 			return nil, err
@@ -631,6 +647,7 @@ func (d *Database) GetBlockAfter(blockHash [HASH_SIZE]byte) (*BlocAndkHash, erro
 		copy(blockAndHash.Hash[:], hash)
 		b.PrevBlockHash = sliceToHash(prevBlockHash)
 		copy(b.MerkleTree[:], merkleTree)
+		copy(b.proposerPkey[:], proposerPkey)
 	} else {
 		_ = dbTx.Commit()
 		return nil, nil

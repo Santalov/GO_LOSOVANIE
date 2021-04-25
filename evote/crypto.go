@@ -3,8 +3,8 @@ package evote
 import (
 	"crypto/rand"
 	"fmt"
-	"go.cypherpunks.ru/gogost/v4/gost3410"
-	"go.cypherpunks.ru/gogost/v4/gost34112012256"
+	"go.cypherpunks.ru/gogost/v5/gost3410"
+	"go.cypherpunks.ru/gogost/v5/gost34112012256"
 	"math/big"
 )
 
@@ -24,7 +24,7 @@ func Hash(data []byte) []byte {
 }
 
 func (keys *CryptoKeysData) SetupKeys(prv []byte) {
-	keys.PrivateKey, _ = gost3410.NewPrivateKey(curve, gost3410.Mode2001, prv)
+	keys.PrivateKey, _ = gost3410.NewPrivateKey(curve, prv)
 	keys.PublickKey, _ = keys.PrivateKey.PublicKey()
 	var pkeyX = keys.PublickKey.Raw()[:32]
 	var tmp = make([]byte, 1)
@@ -80,7 +80,6 @@ func VerifyData(data, signature []byte, pkey [PKEY_SIZE]byte) bool {
 	}
 	var key gost3410.PublicKey
 	key.C = curve
-	key.Mode = gost3410.Mode2001
 	key.X = x
 	key.Y = y
 	digest := make([]byte, len(data)+SIG_SIZE)

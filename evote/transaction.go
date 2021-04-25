@@ -2,13 +2,7 @@ package evote
 
 import (
 	"encoding/binary"
-	"fmt"
 )
-
-//func for Search in Database
-func SearchTrans(prevId [HASH_SIZE]byte) *Transaction {
-	return nil
-}
 
 type TransAndHash struct {
 	Hash        [HASH_SIZE]byte // 32 bytes
@@ -240,67 +234,18 @@ func (t *Transaction) CreateTrans(inputs []*UTXO, outputs map[[PKEY_SIZE]byte]ui
 	return OK
 }
 
-func (t *Transaction) Verify(data []byte, db *Database) ([]byte, int) {
-	var transSize = t.FromBytes(data)
-	if transSize == ERR_TRANS_SIZE {
-		fmt.Println("err: tx not parsed")
-		return nil, ERR_TRANS_SIZE
-	}
-	if t.OutputSize == 0 || t.InputSize == 0 {
-		fmt.Println("err: no inputs or outputs")
-		return nil, ERR_TRANS_VERIFY
-	}
-
-	if t.HashLink != ZERO_ARRAY_HASH && (t.TypeValue == ZERO_ARRAY_HASH || t.TypeVote != 0) {
-		fmt.Println("err: trans with non-zero HashLink has incorrect TypeValue/TypeVote fields")
-		return nil, ERR_TRANS_VERIFY
-	}
-
-	var inputsSum, outputsSum uint32
-	var pkey [PKEY_SIZE]byte
-	for i, input := range t.Inputs {
-		var correspondingUtxo *UTXO
-		utxos, err := db.GetUTXOSByTxId(input.PrevId)
-		if err != nil {
-			panic(err)
-		}
-		// проверка, что вход - непотраченный выход дургой транзы
-		for _, utxo := range utxos {
-			if utxo.Index == input.OutIndex {
-				correspondingUtxo = utxo
-				if i == 0 {
-					pkey = correspondingUtxo.PkeyTo
-				} else {
-					if pkey != correspondingUtxo.PkeyTo {
-						fmt.Println("err: input not owned by sender")
-					}
-				}
-				break
-			}
-		}
-		if correspondingUtxo == nil {
-			fmt.Println("err: double spending in tx")
-			return nil, ERR_TRANS_VERIFY
-		}
-		inputsSum += correspondingUtxo.Value
-		// проверка, что в одной транзе не смешиваются разные typeValue
-		if t.HashLink == ZERO_ARRAY_HASH && t.TypeVote == 0 && correspondingUtxo.TypeValue != t.TypeValue {
-			fmt.Println("err: incorrect typeValue in input", input)
-			return nil, ERR_TRANS_VERIFY
-		}
-
-	}
-	for _, output := range t.Outputs {
-		outputsSum += output.Value
-	}
-	if outputsSum != inputsSum {
-		fmt.Printf("err: outputs sum %v is not matching than inputs sum %v\n", outputsSum, inputsSum)
-		return nil, ERR_TRANS_VERIFY
-	}
-	fmt.Println("pkey", pkey, "signature", t.Signature)
-	if !VerifyData(data[:transSize-SIG_SIZE], t.Signature[:], pkey) {
-		fmt.Println("err: signature doesnt match")
-		return nil, ERR_TRANS_VERIFY
-	}
-	return Hash(data[:transSize]), transSize
+func (t *Transaction) CreateMiningReward(keys *CryptoKeysData, rewardForBlock [HASH_SIZE]byte) {
+	// reward for block is created after that block
+	t.InputSize = 0
+	t.OutputSize = 1
+	var tOut TransactionOutput
+	tOut.Value = REWARD
+	tOut.PkeyTo = keys.PubkeyByte
+	t.Outputs = append(t.Outputs, tOut)
+	t.TypeValue = ZERO_ARRAY_HASH
+	t.TypeVote = 0
+	t.Duration = 0
+	t.HashLink = rewardForBlock
+	t.Signature = ZERO_ARRAY_SIG
+	copy(t.Signature[:], keys.Sign(t.ToBytes()))
 }
