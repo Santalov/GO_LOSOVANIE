@@ -5,7 +5,7 @@ import (
 	"fmt"
 )
 
-func balance(keys *evote.CryptoKeysData, n *Network) {
+func balance(keys *evote.CryptoKeysData, n *evote.Network) {
 	pkey := keys.PubkeyByte
 	priv := keys.PrivateKey
 	utxos, err := n.GetUtxosByPkey(pkey)

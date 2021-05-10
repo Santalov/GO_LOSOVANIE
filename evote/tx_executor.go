@@ -142,7 +142,6 @@ func (t *TxExecutor) AppendTx(data []byte, ignoreDuplicates bool) (code uint32) 
 func (t *TxExecutor) verifySigAndAppend(
 	data []byte, transSize int, txAndHash TransAndHash, pkey [PKEY_SIZE]byte,
 ) (code uint32) {
-	fmt.Println("pkey", pkey, "signature", txAndHash.Transaction.Signature)
 	if !VerifyData(data[:transSize-SIG_SIZE], txAndHash.Transaction.Signature[:], pkey) {
 		fmt.Println("err: signature doesnt match")
 		return CODE_INVALID_SIGNATURE

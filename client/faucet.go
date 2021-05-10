@@ -8,7 +8,7 @@ import (
 	"strconv"
 )
 
-func faucet(keys *evote.CryptoKeysData, n *Network) {
+func faucet(keys *evote.CryptoKeysData, n *evote.Network) {
 	validateAmount := func(input string) error {
 		_, err := strconv.ParseInt(input, 10, 64)
 		if err != nil {
@@ -34,7 +34,7 @@ func faucet(keys *evote.CryptoKeysData, n *Network) {
 	sendFaucet(amount, keys.PubkeyByte, n)
 }
 
-func sendFaucet(amount uint32, pkey [evote.PKEY_SIZE]byte, n *Network) {
+func sendFaucet(amount uint32, pkey [evote.PKEY_SIZE]byte, n *evote.Network) {
 	err := n.Faucet(amount, pkey)
 	if err != nil {
 		if retryQuestion(n) {

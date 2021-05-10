@@ -8,7 +8,7 @@ import (
 	"github.com/manifoldco/promptui"
 )
 
-var pathToGlobalConf = flag.String("g", "", "path to global config")
+var pathToValidatorsConfig = flag.String("v", "", "path to validators config")
 var pathToKeyPair = flag.String("k", "", "path to key pair")
 
 const (
@@ -21,23 +21,27 @@ const (
 
 func main() {
 	flag.Parse()
-	if *pathToKeyPair == "" || *pathToGlobalConf == "" {
-		fmt.Println("Usage: go run main.go -g=<path to global config> -l=<path to local config>")
+	if *pathToKeyPair == "" || *pathToValidatorsConfig == "" {
+		fmt.Println("Usage: go run main.go -v=<path to validators config> -k=<path to key pair>")
 		return
 	}
-	gConf, keyPair, err := evote.LoadConfig(*pathToGlobalConf, *pathToKeyPair)
+	prv, err := evote.LoadPrivateKey(*pathToKeyPair)
 	if err != nil {
 		panic(err)
 	}
-
-	var n Network
-	hosts := make([]string, len(gConf.Validators))
-	for i, v := range gConf.Validators {
-		hosts[i] = v.Addr
+	validators, err := evote.LoadValidators(*pathToValidatorsConfig)
+	if err != nil {
+		panic(err)
+	}
+	var n evote.Network
+	hosts := make([]string, len(validators))
+	for i, v := range validators {
+		hosts[i] = v.IpAndPort
 	}
 	var keys evote.CryptoKeysData
-	keys.SetupKeys(keyPair.Prv)
+	keys.SetupKeys(prv)
 	n.Init(hosts)
+	n.PingAll()
 	fmt.Println("available commands: " +
 		BALANCE + ", " + TRANSACTIONS + ", " + SEND + ", " + FAUCET + ", " + VOTE)
 

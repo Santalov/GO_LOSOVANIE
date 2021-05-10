@@ -1,11 +1,11 @@
 package evote
 
 import (
-	"bytes"
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"fmt"
+	abcitypes "github.com/tendermint/tendermint/abci/types"
 	rpctypes "github.com/tendermint/tendermint/rpc/jsonrpc/types"
 	"io/ioutil"
 	"math/rand"
@@ -29,27 +29,6 @@ func (n *Network) Copy() *Network {
 		workingHosts,
 		allHosts,
 		n.curHost,
-	}
-}
-
-func (n *Network) makeBinaryPostRequest(host string, endPoint string, data []byte) (response []byte, err error) {
-	resp, err := http.Post("http://"+host+endPoint, "application/octet-stream", bytes.NewReader(data))
-	if err != nil {
-		fmt.Println("request err: ", err)
-		return nil, err
-	} else {
-		if resp.StatusCode != http.StatusOK {
-			body, _ := ioutil.ReadAll(resp.Body)
-			fmt.Printf("validator answered with error %v, body: %v\n", resp.Status, string(body))
-			return nil, fmt.Errorf(string(body))
-		} else {
-			body, err := ioutil.ReadAll(resp.Body)
-			if err != nil {
-				fmt.Println("request err: body cannot be read, err:")
-				return nil, err
-			}
-			return body, nil
-		}
 	}
 }
 
@@ -95,7 +74,7 @@ func (n *Network) pingHosts(hosts []string) (alive []string) {
 	for _, host := range hosts {
 		go n.makeInfoRequest(host, responses)
 	}
-	for _ = range hosts {
+	for range hosts {
 		h := <-responses
 		if h != "" {
 			alive = append(alive, h)
@@ -161,8 +140,7 @@ func parseTrans(data []byte) ([]*Transaction, error) {
 	return txs, nil
 }
 
-func (n *Network) BroadcastTxSync(tx []byte) (*rpctypes.RPCResponse, error) {
-	respRaw, err := n.makeGetRequest(n.curHost, "/broadcast_tx_sync", url.Values{"tx": {"0x" + hex.EncodeToString(tx)}})
+func toRpcResp(respRaw []byte, err error) (*rpctypes.RPCResponse, error) {
 	if err != nil {
 		return nil, err
 	}
@@ -174,6 +152,70 @@ func (n *Network) BroadcastTxSync(tx []byte) (*rpctypes.RPCResponse, error) {
 	return response, err
 }
 
+func toRpcResult(respRaw []byte, err error) ([]byte, error) {
+	if err != nil {
+		return nil, err
+	}
+	resp, err := toRpcResp(respRaw, err)
+	if err != nil {
+		return nil, err
+	}
+	if resp.Error != nil {
+		return nil, resp.Error
+	}
+	return resp.Result.MarshalJSON()
+}
+
+func toResponseQuery(result []byte, err error) (*abcitypes.ResponseQuery, error) {
+	if err != nil {
+		return nil, err
+	}
+	var responseQuery abcitypes.ResponseQuery
+	err = responseQuery.UnmarshalJSON(result)
+	if err != nil {
+		return nil, err
+	}
+	return &responseQuery, err
+}
+
+func (n *Network) abciQueryResponse(path string, data []byte) (*abcitypes.ResponseQuery, error) {
+	fmt.Println("request to path", path, "with binary data", data)
+	return toResponseQuery(
+		toRpcResult(
+			n.makeGetRequest(
+				n.curHost, "/abci_query",
+				url.Values{
+					"path": {"\"" + path + "\""},
+					"data": {"0x" + hex.EncodeToString(data)},
+				},
+			),
+		),
+	)
+}
+
+// this function is used server does not send error codes, so we can just use value
+func (n *Network) abciQueryValue(path string, data []byte) ([]byte, error) {
+	resp, err := n.abciQueryResponse(path, data)
+	if err != nil {
+		return nil, err
+	}
+	if resp.Code != 0 {
+		return nil, fmt.Errorf("validator answered with not null code %d, log %v", resp.Code, resp.Log)
+	}
+	return resp.Value, err
+}
+
+func (n *Network) BroadcastTxSync(tx []byte) ([]byte, error) {
+	return toRpcResult(
+		n.makeGetRequest(
+			n.curHost,
+			"/broadcast_tx_sync",
+			url.Values{
+				"tx": {"0x" + hex.EncodeToString(tx)},
+			}),
+	)
+}
+
 func (n *Network) GetTxsByHashes(hashes [][HASH_SIZE]byte) ([]*Transaction, error) {
 	reqData := make([]byte, len(hashes)*HASH_SIZE+INT_32_SIZE)
 	binary.LittleEndian.PutUint32(reqData[:INT_32_SIZE], uint32(len(hashes)))
@@ -182,7 +224,7 @@ func (n *Network) GetTxsByHashes(hashes [][HASH_SIZE]byte) ([]*Transaction, erro
 		copy(reqData[offset:offset+HASH_SIZE], h[:])
 		offset += HASH_SIZE
 	}
-	data, err := n.makeBinaryPostRequest(n.curHost, "/getTxs", reqData)
+	data, err := n.abciQueryValue("getTxs", reqData)
 	if err != nil {
 		return nil, err
 	}
@@ -190,7 +232,7 @@ func (n *Network) GetTxsByHashes(hashes [][HASH_SIZE]byte) ([]*Transaction, erro
 }
 
 func (n *Network) GetTxsByPkey(pkey [PKEY_SIZE]byte) ([]*Transaction, error) {
-	data, err := n.makeBinaryPostRequest(n.curHost, "/getTxsByPubKey", pkey[:])
+	data, err := n.abciQueryValue("getTxsByPubKey", pkey[:])
 	if err != nil {
 		return nil, err
 	}
@@ -198,7 +240,7 @@ func (n *Network) GetTxsByPkey(pkey [PKEY_SIZE]byte) ([]*Transaction, error) {
 }
 
 func (n *Network) GetUtxosByPkey(pkey [PKEY_SIZE]byte) ([]*UTXO, error) {
-	data, err := n.makeBinaryPostRequest(n.curHost, "/getUTXOByPubKey", pkey[:])
+	data, err := n.abciQueryValue("getUTXOByPubKey", pkey[:])
 	if err != nil {
 		return nil, err
 	}
@@ -219,34 +261,20 @@ func (n *Network) GetUtxosByPkey(pkey [PKEY_SIZE]byte) ([]*UTXO, error) {
 }
 
 func (n *Network) SubmitTx(tx []byte) error {
-	resp, err := http.Post("http://"+n.curHost+"/submitClientTx", "application/octet-stream", bytes.NewReader(tx))
-	if err != nil {
-		fmt.Println("request err: ", err)
-		return err
-	} else {
-		if resp.StatusCode != http.StatusOK {
-			body, _ := ioutil.ReadAll(resp.Body)
-			fmt.Printf("validator answered with error %v, body: %v\n", resp.Status, string(body))
-			return fmt.Errorf(string(body))
-		} else {
-			return nil
-		}
-	}
+	_, err := n.BroadcastTxSync(tx)
+	return err
 }
 
 func (n *Network) Faucet(amount uint32, pkey [PKEY_SIZE]byte) error {
 	data := make([]byte, INT_32_SIZE+PKEY_SIZE)
 	binary.LittleEndian.PutUint32(data[:INT_32_SIZE], amount)
 	copy(data[INT_32_SIZE:], pkey[:])
-	resp, err := http.Post("http://"+n.curHost+"/faucet", "application/octet-stream", bytes.NewReader(data))
+	resp, err := n.abciQueryResponse("faucet", data)
 	if err != nil {
-		fmt.Println("request err: ", err)
 		return err
 	} else {
-		if resp.StatusCode != http.StatusOK {
-			body, _ := ioutil.ReadAll(resp.Body)
-			fmt.Printf("validator answered with error %v, body: %v\n", resp.Status, string(body))
-			return fmt.Errorf(string(body))
+		if resp.Code != 0 {
+			return fmt.Errorf("validator answered with code %v, log: %v\n", resp.Code, resp.Log)
 		} else {
 			return nil
 		}
@@ -254,7 +282,7 @@ func (n *Network) Faucet(amount uint32, pkey [PKEY_SIZE]byte) error {
 }
 
 func (n *Network) VoteResults(hash [HASH_SIZE]byte) (map[[PKEY_SIZE]byte]uint32, error) {
-	data, err := n.makeBinaryPostRequest(n.curHost, "/getVoteResult", hash[:])
+	data, err := n.abciQueryValue("getVoteResult", hash[:])
 	if err != nil {
 		return nil, err
 	}

@@ -5,7 +5,7 @@ import (
 	"fmt"
 )
 
-func voteResults(keys *evote.CryptoKeysData, n *Network, typeValue [evote.HASH_SIZE]byte) {
+func voteResults(keys *evote.CryptoKeysData, n *evote.Network, typeValue [evote.HASH_SIZE]byte) {
 	results, err := n.VoteResults(typeValue)
 	if err != nil {
 		if retryQuestion(n) {

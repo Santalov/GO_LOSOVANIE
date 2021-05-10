@@ -1,6 +1,7 @@
 package evote
 
 import (
+	"encoding/hex"
 	"fmt"
 	abcitypes "github.com/tendermint/tendermint/abci/types"
 )
@@ -127,14 +128,14 @@ func (bc *BlockchainApp) CheckTx(req abcitypes.RequestCheckTx) abcitypes.Respons
 }
 
 func (bc *BlockchainApp) BeginBlock(req abcitypes.RequestBeginBlock) abcitypes.ResponseBeginBlock {
-	fmt.Println("begin block", req.Hash)
+	//fmt.Println("begin block", req.Hash)
 	proposer := bc.getValidator(req.Header.ProposerAddress)
 	bc.deliverTxState.BeginBlock(req.Header.Time, proposer.Pkey)
 	return abcitypes.ResponseBeginBlock{}
 }
 
 func (bc *BlockchainApp) DeliverTx(req abcitypes.RequestDeliverTx) abcitypes.ResponseDeliverTx {
-	fmt.Println("deliver tx")
+	//fmt.Println("deliver tx")
 	code := bc.deliverTxState.AppendTx(req.Tx, false)
 	return abcitypes.ResponseDeliverTx{
 		Code: code,
@@ -143,7 +144,7 @@ func (bc *BlockchainApp) DeliverTx(req abcitypes.RequestDeliverTx) abcitypes.Res
 
 func (bc *BlockchainApp) EndBlock(req abcitypes.RequestEndBlock) abcitypes.ResponseEndBlock {
 	// no changes to validator set during runtime
-	fmt.Println("end block")
+	//fmt.Println("end block")
 	return abcitypes.ResponseEndBlock{}
 }
 
@@ -154,9 +155,9 @@ func (bc *BlockchainApp) broadcastTxUntilSuccess(tx []byte) {
 	// Network has internal state, so for thread safety copy it
 	nw := bc.nw.Copy()
 	for {
-		resp, err := nw.BroadcastTxSync(tx)
-		if err == nil && resp.Error == nil {
-			fmt.Println("reward tx broadcast success, result", resp.Result)
+		_, err := nw.BroadcastTxSync(tx)
+		if err == nil {
+			//fmt.Println("reward tx broadcast success")
 			return
 		}
 		nw.SelectNextHost()
@@ -164,9 +165,8 @@ func (bc *BlockchainApp) broadcastTxUntilSuccess(tx []byte) {
 		if errors >= maxErrors {
 			panic(
 				fmt.Sprintf(
-					"impossible to broadcast reward tx, err %v, rpc err %v\n",
+					"impossible to broadcast reward tx, err %v",
 					err.Error(),
-					resp.Error.Error(),
 				),
 			)
 		}
@@ -181,7 +181,7 @@ func (bc *BlockchainApp) broadcastRewardForMe(blockHash [HASH_SIZE]byte) {
 }
 
 func (bc *BlockchainApp) Commit() abcitypes.ResponseCommit {
-	fmt.Println("commit")
+	//fmt.Println("commit")
 	var b Block
 	b.CreateBlock(
 		bc.deliverTxState.Transactions,
@@ -205,7 +205,7 @@ func (bc *BlockchainApp) Commit() abcitypes.ResponseCommit {
 	bc.appHeight++
 	bc.checkTxState.Reset()
 	bc.deliverTxState.Reset()
-	fmt.Println("block committed", blockAndHash.Hash)
+	fmt.Println("block committed", hex.EncodeToString(blockAndHash.Hash[:]), "txCount", blockAndHash.B.TransSize)
 	return abcitypes.ResponseCommit{
 		Data: bc.appBlockHash[:],
 	}

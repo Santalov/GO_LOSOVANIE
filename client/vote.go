@@ -8,7 +8,7 @@ import (
 	"github.com/manifoldco/promptui"
 )
 
-func enterVotingId(keys *evote.CryptoKeysData, n *Network) (*[evote.HASH_SIZE]byte, error) {
+func enterVotingId(keys *evote.CryptoKeysData, n *evote.Network) (*[evote.HASH_SIZE]byte, error) {
 	validateHash := func(input string) error {
 		pkey, err := hex.DecodeString(input)
 		if err != nil {
@@ -38,7 +38,7 @@ func enterVotingId(keys *evote.CryptoKeysData, n *Network) (*[evote.HASH_SIZE]by
 	return &typeValue, nil
 }
 
-func voteMenu(keys *evote.CryptoKeysData, n *Network, typeValue [evote.HASH_SIZE]byte) {
+func voteMenu(keys *evote.CryptoKeysData, n *evote.Network, typeValue [evote.HASH_SIZE]byte) {
 	prompt := promptui.Select{
 		Label: "Select vote type",
 		Items: []string{"Info", "See results", "Send vote"},
@@ -60,7 +60,7 @@ func voteMenu(keys *evote.CryptoKeysData, n *Network, typeValue [evote.HASH_SIZE
 	}
 }
 
-func vote(keys *evote.CryptoKeysData, n *Network) {
+func vote(keys *evote.CryptoKeysData, n *evote.Network) {
 	pkey := keys.PubkeyByte
 	//priv := keys.PrivateKey
 	utxos, err := n.GetUtxosByPkey(pkey)

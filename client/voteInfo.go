@@ -5,7 +5,7 @@ import (
 	"fmt"
 )
 
-func voteInfo(keys *evote.CryptoKeysData, n *Network, typeValue [evote.HASH_SIZE]byte) {
+func voteInfo(keys *evote.CryptoKeysData, n *evote.Network, typeValue [evote.HASH_SIZE]byte) {
 	txs, err := n.GetTxsByHashes([][evote.HASH_SIZE]byte{typeValue})
 	if err != nil {
 		if retryQuestion(n) {

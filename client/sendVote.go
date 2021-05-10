@@ -9,7 +9,7 @@ import (
 	"strconv"
 )
 
-func sendVote(keys *evote.CryptoKeysData, n *Network, typeValue [evote.HASH_SIZE]byte) {
+func sendVote(keys *evote.CryptoKeysData, n *evote.Network, typeValue [evote.HASH_SIZE]byte) {
 	validateAmount := func(input string) error {
 		_, err := strconv.ParseInt(input, 10, 64)
 		if err != nil {

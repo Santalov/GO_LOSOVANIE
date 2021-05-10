@@ -5,7 +5,7 @@ import (
 	"fmt"
 )
 
-func transactions(keys *evote.CryptoKeysData, n *Network) {
+func transactions(keys *evote.CryptoKeysData, n *evote.Network) {
 	pkey := keys.PubkeyByte
 	txs, err := n.GetTxsByPkey(pkey)
 	if err != nil {

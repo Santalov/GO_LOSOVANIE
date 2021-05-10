@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-func createVoting(keys *evote.CryptoKeysData, n *Network) {
+func createVoting(keys *evote.CryptoKeysData, n *evote.Network) {
 	var typeVote, amountPerParticipant, duration uint32
 	prompt := promptui.Select{
 		Label: "Select vote type",

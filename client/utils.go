@@ -7,7 +7,7 @@ import (
 	"github.com/manifoldco/promptui"
 )
 
-func retryQuestion(n *Network) bool {
+func retryQuestion(n *evote.Network) bool {
 	prompt := promptui.Select{
 		Label: "Retry?",
 		Items: []string{"Yes", "No"},

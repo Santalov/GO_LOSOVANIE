@@ -9,7 +9,7 @@ import (
 	"strconv"
 )
 
-func send(keys *evote.CryptoKeysData, n *Network) {
+func send(keys *evote.CryptoKeysData, n *evote.Network) {
 	validateAmount := func(input string) error {
 		_, err := strconv.ParseInt(input, 10, 64)
 		if err != nil {
@@ -83,7 +83,7 @@ func send(keys *evote.CryptoKeysData, n *Network) {
 	}
 }
 
-func sendTx(tx *evote.Transaction, n *Network) {
+func sendTx(tx *evote.Transaction, n *evote.Network) {
 	err := n.SubmitTx(tx.ToBytes())
 	if err != nil {
 		if retryQuestion(n) {
