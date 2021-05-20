@@ -19,19 +19,19 @@ import (
 // Transaction.TypeVote и Transaction.TypeValue не преобразуются к nil, так как на них не завязана ссылочная целостность
 // и преобразование к nil добавляет дополнительную сложность
 
-func hashToSlice(v [HASH_SIZE]byte) interface{} {
-	if v == [HASH_SIZE]byte{} {
+func hashToSlice(v [HashSize]byte) interface{} {
+	if v == [HashSize]byte{} {
 		return nil
 	} else {
 		return v[:]
 	}
 }
 
-func sliceToHash(v []byte) [HASH_SIZE]byte {
+func sliceToHash(v []byte) [HashSize]byte {
 	if v == nil {
-		return [HASH_SIZE]byte{}
+		return [HashSize]byte{}
 	} else {
-		var hash [HASH_SIZE]byte
+		var hash [HashSize]byte
 		copy(hash[:], v)
 		return hash
 	}
@@ -49,7 +49,7 @@ func buildInLookup(from int, to int) string {
 }
 
 // не откатывает транзу при ошибке
-func getTxInputsAndOutputs(dbTx *sql.Tx, txHash [HASH_SIZE]byte) ([]TransactionInput, []TransactionOutput, error) {
+func getTxInputsAndOutputs(dbTx *sql.Tx, txHash [HashSize]byte) ([]TransactionInput, []TransactionOutput, error) {
 	var inputs []TransactionInput
 	var outputs []TransactionOutput
 	inputRows, err := dbTx.Query(
@@ -229,7 +229,7 @@ func (d *Database) SaveNextBlock(block *BlocAndkHash) error {
 
 // GetBlocksByHashes функция может не найти некоторые блоки (если их нет), но ошибки не будет
 // так же эти блоке не появятся в возращаемом срезе
-func (d *Database) GetBlocksByHashes(blockHashes [][HASH_SIZE]byte) ([]*BlocAndkHash, error) {
+func (d *Database) GetBlocksByHashes(blockHashes [][HashSize]byte) ([]*BlocAndkHash, error) {
 	dbTx, err := d.db.Begin()
 	if err != nil {
 		return nil, err
@@ -297,8 +297,8 @@ func (d *Database) GetBlocksByHashes(blockHashes [][HASH_SIZE]byte) ([]*BlocAndk
 	return blocks, nil
 }
 
-func (d *Database) GetBlockByHash(hash [HASH_SIZE]byte) (*BlocAndkHash, error) {
-	blocks, err := d.GetBlocksByHashes([][HASH_SIZE]byte{hash})
+func (d *Database) GetBlockByHash(hash [HashSize]byte) (*BlocAndkHash, error) {
+	blocks, err := d.GetBlocksByHashes([][HashSize]byte{hash})
 	if err != nil {
 		return nil, err
 	}
@@ -311,8 +311,8 @@ func (d *Database) GetBlockByHash(hash [HASH_SIZE]byte) (*BlocAndkHash, error) {
 	}
 }
 
-func (d *Database) GetTxByHash(hash [HASH_SIZE]byte) (*Transaction, error) {
-	transAndHash, err := d.GetTxsByHashes([][HASH_SIZE]byte{hash})
+func (d *Database) GetTxByHash(hash [HashSize]byte) (*Transaction, error) {
+	transAndHash, err := d.GetTxsByHashes([][HashSize]byte{hash})
 	if err != nil {
 		return nil, err
 	}
@@ -327,7 +327,7 @@ func (d *Database) GetTxByHash(hash [HASH_SIZE]byte) (*Transaction, error) {
 
 // GetTxsByHashes не все транзы из перечисленных в txHashes могут быть в ответе
 // (если таких транз нет в бд)
-func (d *Database) GetTxsByHashes(txHashes [][HASH_SIZE]byte) ([]TransAndHash, error) {
+func (d *Database) GetTxsByHashes(txHashes [][HashSize]byte) ([]TransAndHash, error) {
 	dbTx, err := d.db.Begin()
 	if err != nil {
 		return nil, err
@@ -356,7 +356,7 @@ func (d *Database) GetTxsByHashes(txHashes [][HASH_SIZE]byte) ([]TransAndHash, e
 	return txs, nil
 }
 
-func (d *Database) GetTxAndTimeByHash(hash [HASH_SIZE]byte) (*TransAndHash, uint64, error) {
+func (d *Database) GetTxAndTimeByHash(hash [HashSize]byte) (*TransAndHash, uint64, error) {
 	dbTx, err := d.db.Begin()
 	if err != nil {
 		return nil, 0, err
@@ -421,7 +421,7 @@ func (d *Database) GetTxAndTimeByHash(hash [HASH_SIZE]byte) (*TransAndHash, uint
 	}
 }
 
-func (d *Database) GetTxByHashLink(hashLink [HASH_SIZE]byte) (*TransAndHash, error) {
+func (d *Database) GetTxByHashLink(hashLink [HashSize]byte) (*TransAndHash, error) {
 	dbTx, err := d.db.Begin()
 	if err != nil {
 		return nil, err
@@ -486,7 +486,7 @@ func (d *Database) GetTxByHashLink(hashLink [HASH_SIZE]byte) (*TransAndHash, err
 	}
 }
 
-func (d *Database) GetTxsByPubKey(pkey [PKEY_SIZE]byte) ([]TransAndHash, error) {
+func (d *Database) GetTxsByPubKey(pkey [PkeySize]byte) ([]TransAndHash, error) {
 	dbTx, err := d.db.Begin()
 	if err != nil {
 		return nil, err
@@ -563,7 +563,7 @@ func (d *Database) getUTXOS(sqlQuery string, params []interface{}) ([]*UTXO, err
 	return utxos, nil
 }
 
-func (d *Database) GetUTXOSByPkey(pkey [PKEY_SIZE]byte) ([]*UTXO, error) {
+func (d *Database) GetUTXOSByPkey(pkey [PkeySize]byte) ([]*UTXO, error) {
 	// условие transaction.typeVote = 0 нужно, чтобы не выбрать typeValue транзы создания голосования, который всегда нулевой
 	// typeValue выходов транзы создания голосования - её хеш, для этого нужен второй селект после union
 	return d.getUTXOS(
@@ -582,7 +582,7 @@ func (d *Database) GetUTXOSByPkey(pkey [PKEY_SIZE]byte) ([]*UTXO, error) {
 	)
 }
 
-func (d *Database) GetUTXOSByTxId(txid [HASH_SIZE]byte) ([]*UTXO, error) {
+func (d *Database) GetUTXOSByTxId(txid [HashSize]byte) ([]*UTXO, error) {
 	return d.getUTXOS(
 		`SELECT block.timestamp, transaction.typeValue, output.txid, output.Index, output.Value, output.publicKeyTo 
 			from block, transaction, output  
@@ -599,7 +599,7 @@ func (d *Database) GetUTXOSByTxId(txid [HASH_SIZE]byte) ([]*UTXO, error) {
 	)
 }
 
-func (d *Database) GetUTXOSByTypeValue(typeValue [HASH_SIZE]byte) ([]*UTXO, error) {
+func (d *Database) GetUTXOSByTypeValue(typeValue [HashSize]byte) ([]*UTXO, error) {
 	return d.getUTXOS(
 		`SELECT block.timestamp, transaction.typeValue, output.txid, output.Index, output.Value, output.publicKeyTo 
 			from block, transaction, output  
@@ -611,13 +611,13 @@ func (d *Database) GetUTXOSByTypeValue(typeValue [HASH_SIZE]byte) ([]*UTXO, erro
 }
 
 // GetBlockAfter если следующего блока нет, ошибки не будет, вернется nil, nil
-func (d *Database) GetBlockAfter(blockHash [HASH_SIZE]byte) (*BlocAndkHash, error) {
+func (d *Database) GetBlockAfter(blockHash [HashSize]byte) (*BlocAndkHash, error) {
 	dbTx, err := d.db.Begin()
 	if err != nil {
 		return nil, err
 	}
 	var blockRow *sql.Rows
-	if blockHash != ZERO_ARRAY_HASH {
+	if blockHash != ZeroArrayHash {
 		blockRow, err = dbTx.Query(
 			`SELECT block.blockhash, block.PrevBlockHash, block.merkletree, block.proposerPkey, block.Timestamp 
 			FROM block WHERE block.PrevBlockHash = $1`,

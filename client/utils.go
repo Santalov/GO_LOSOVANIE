@@ -7,7 +7,11 @@ import (
 	"github.com/manifoldco/promptui"
 )
 
-func retryQuestion(n *evote.Network) bool {
+func retryQuestion(err error, n *evote.Network) bool {
+	if err == nil {
+		return false
+	}
+	fmt.Println("An error occurred during request:", err)
 	prompt := promptui.Select{
 		Label: "Retry?",
 		Items: []string{"Yes", "No"},
@@ -28,7 +32,7 @@ func retryQuestion(n *evote.Network) bool {
 	}
 }
 
-func calcBalance(utxos []*evote.UTXO, typeValue [evote.HASH_SIZE]byte) (balanceOfTypeValue, otherBalance uint32) {
+func calcBalance(utxos []*evote.UTXO, typeValue [evote.HashSize]byte) (balanceOfTypeValue, otherBalance uint32) {
 	for _, utxo := range utxos {
 		if utxo.TypeValue == typeValue {
 			balanceOfTypeValue += utxo.Value
@@ -39,7 +43,7 @@ func calcBalance(utxos []*evote.UTXO, typeValue [evote.HASH_SIZE]byte) (balanceO
 	return
 }
 
-func pkeyHex(pkey [evote.PKEY_SIZE]byte) string {
+func pkeyHex(pkey [evote.PkeySize]byte) string {
 	return hex.EncodeToString(pkey[:])
 }
 

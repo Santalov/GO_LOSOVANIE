@@ -8,12 +8,12 @@ import (
 func TestDatabase(t *testing.T) {
 	//fmt.Printf("blocks: %+v\n%+v%+v\n", BLOCK0, BLOCK1, BLOCK2)
 	var db Database
-	err := db.Init(DBNAME, DBUSER, DBPASSWORD, DBHOST, 5432)
+	err := db.Init(DbName, DbUser, DbPassword, DbHost, 5432)
 	assert.Nil(t, err)
 	t.Run("insert_blockz", func(t *testing.T) {
 		err := db.SaveNextBlock(&B_AND_HZ)
 		assert.Nil(t, err)
-		blocksReceived, err := db.GetBlocksByHashes([][HASH_SIZE]byte{
+		blocksReceived, err := db.GetBlocksByHashes([][HashSize]byte{
 			B_AND_HZ.Hash,
 		})
 		assert.Nil(t, err)
@@ -26,7 +26,7 @@ func TestDatabase(t *testing.T) {
 	t.Run("insert_block0", func(t *testing.T) {
 		err := db.SaveNextBlock(&B_AND_H0)
 		assert.Nil(t, err)
-		blocksReceived, err := db.GetBlocksByHashes([][HASH_SIZE]byte{
+		blocksReceived, err := db.GetBlocksByHashes([][HashSize]byte{
 			B_AND_H0.Hash,
 		})
 		assert.Nil(t, err)
@@ -39,7 +39,7 @@ func TestDatabase(t *testing.T) {
 	t.Run("get_tx_by_id_0", func(t *testing.T) {
 		txid := BLOCK0.Trans[0].Hash
 		txsExpected := BLOCK0.Trans // there is only one tx, which we will receive
-		txsReceived, err := db.GetTxsByHashes([][HASH_SIZE]byte{txid})
+		txsReceived, err := db.GetTxsByHashes([][HashSize]byte{txid})
 		assert.Nil(t, err)
 		assert.Equal(t, txsExpected, txsReceived)
 		assert.Equal(t, txsExpected[0].Hash, txHash(txsReceived[0].Transaction))
@@ -53,7 +53,7 @@ func TestDatabase(t *testing.T) {
 		assert.Equal(t, txsExpected[0].Hash, txHash(txsReceived[0].Transaction))
 	})
 	t.Run("get_undefined_block_0", func(t *testing.T) {
-		hashes := [][HASH_SIZE]byte{
+		hashes := [][HashSize]byte{
 			{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20}, // несуществующий хеш блока
 		}
 		blocksExpected := make([]*BlocAndkHash, 0)
@@ -62,7 +62,7 @@ func TestDatabase(t *testing.T) {
 		assert.Equal(t, blocksExpected, blocksReceived)
 	})
 	t.Run("get_undefined_tx_by_id_0", func(t *testing.T) {
-		hashes := [][HASH_SIZE]byte{
+		hashes := [][HashSize]byte{
 			{1, 4, 8, 8, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20}, // несуществующий хеш транзы
 		}
 		txsExpected := make([]TransAndHash, 0)
@@ -71,7 +71,7 @@ func TestDatabase(t *testing.T) {
 		assert.Equal(t, txsExpected, txsReceived)
 	})
 	t.Run("get_undefined_tx_by_pkey", func(t *testing.T) {
-		pkey := [PKEY_SIZE]byte{} // несуществующий публичный ключ
+		pkey := [PkeySize]byte{} // несуществующий публичный ключ
 		txsExpected := make([]TransAndHash, 0)
 		txsReceived, err := db.GetTxsByPubKey(pkey)
 		assert.Nil(t, err)
@@ -82,7 +82,7 @@ func TestDatabase(t *testing.T) {
 		assert.Error(t, err)
 	})
 	t.Run("expect_duplicate_was_not_saved", func(t *testing.T) {
-		blocksReceived, err := db.GetBlocksByHashes([][HASH_SIZE]byte{
+		blocksReceived, err := db.GetBlocksByHashes([][HashSize]byte{
 			B_AND_H0.Hash,
 		})
 		assert.Nil(t, err)
@@ -96,7 +96,7 @@ func TestDatabase(t *testing.T) {
 		utxosExpected := []*UTXO{
 			{
 				TxId:      tx.Hash,
-				TypeValue: ZERO_ARRAY_HASH,
+				TypeValue: ZeroArrayHash,
 				Index:     0,
 				Value:     tx.Transaction.Outputs[0].Value,
 				PkeyTo:    pkey,
@@ -113,7 +113,7 @@ func TestDatabase(t *testing.T) {
 		utxosExpected := []*UTXO{
 			{
 				TxId:      tx.Hash,
-				TypeValue: ZERO_ARRAY_HASH,
+				TypeValue: ZeroArrayHash,
 				Index:     0,
 				Value:     tx.Transaction.Outputs[0].Value,
 				PkeyTo:    pkey,
@@ -125,28 +125,28 @@ func TestDatabase(t *testing.T) {
 		assert.Equal(t, utxosExpected, utxosReceived)
 	})
 	t.Run("get_undefined_utxos_by_pkey_0", func(t *testing.T) {
-		pkey := [PKEY_SIZE]byte{} // несуществующий публичный ключ
+		pkey := [PkeySize]byte{} // несуществующий публичный ключ
 		utxosExpected := make([]*UTXO, 0)
 		utxosReceived, err := db.GetUTXOSByPkey(pkey)
 		assert.Nil(t, err)
 		assert.Equal(t, utxosExpected, utxosReceived)
 	})
 	t.Run("get_undefined_utxos_by_txid_0", func(t *testing.T) {
-		txid := [HASH_SIZE]byte{} // несуществующий txid
+		txid := [HashSize]byte{} // несуществующий txid
 		utxosExpected := make([]*UTXO, 0)
 		utxosReceived, err := db.GetUTXOSByTxId(txid)
 		assert.Nil(t, err)
 		assert.Equal(t, utxosExpected, utxosReceived)
 	})
 	t.Run("get_first_block", func(t *testing.T) {
-		hash := ZERO_ARRAY_HASH
+		hash := ZeroArrayHash
 		blockReceived, err := db.GetBlockAfter(hash)
 		assert.Nil(t, err)
 		assert.Equal(t, B_AND_HZ.B, blockReceived.B)
 		assert.Equal(t, B_AND_HZ.Hash, blockHash(blockReceived.B))
 	})
 	t.Run("get_undefined_first_block_0", func(t *testing.T) {
-		hash := [HASH_SIZE]byte{1, 2, 3} //несуществующий хеш
+		hash := [HashSize]byte{1, 2, 3} //несуществующий хеш
 		blockReceived, err := db.GetBlockAfter(hash)
 		assert.Nil(t, err)
 		assert.Nil(t, blockReceived)
@@ -160,7 +160,7 @@ func TestDatabase(t *testing.T) {
 	t.Run("insert_block_1", func(t *testing.T) {
 		err := db.SaveNextBlock(&B_AND_H1)
 		assert.Nil(t, err)
-		blocksReceived, err := db.GetBlocksByHashes([][HASH_SIZE]byte{
+		blocksReceived, err := db.GetBlocksByHashes([][HashSize]byte{
 			B_AND_H1.Hash,
 		})
 		assert.Nil(t, err)
@@ -179,7 +179,7 @@ func TestDatabase(t *testing.T) {
 		utxosExpected := []*UTXO{
 			{
 				TxId:      tx0.Hash,
-				TypeValue: ZERO_ARRAY_HASH,
+				TypeValue: ZeroArrayHash,
 				Index:     0,
 				Value:     output0.Value,
 				PkeyTo:    output0.PkeyTo,
@@ -187,7 +187,7 @@ func TestDatabase(t *testing.T) {
 			},
 			{
 				TxId:      tx1.Hash,
-				TypeValue: ZERO_ARRAY_HASH,
+				TypeValue: ZeroArrayHash,
 				Index:     1,
 				Value:     output1.Value,
 				PkeyTo:    output1.PkeyTo,
@@ -205,7 +205,7 @@ func TestDatabase(t *testing.T) {
 		utxosExpected := []*UTXO{
 			{
 				TxId:      tx.Hash,
-				TypeValue: ZERO_ARRAY_HASH,
+				TypeValue: ZeroArrayHash,
 				Index:     0,
 				Value:     output.Value,
 				PkeyTo:    pkey,
@@ -222,7 +222,7 @@ func TestDatabase(t *testing.T) {
 		utxosExpected := []*UTXO{
 			{
 				TxId:      tx0.Hash,
-				TypeValue: ZERO_ARRAY_HASH,
+				TypeValue: ZeroArrayHash,
 				Index:     0,
 				Value:     output0.Value,
 				PkeyTo:    output0.PkeyTo,
@@ -240,7 +240,7 @@ func TestDatabase(t *testing.T) {
 		utxosExpected := []*UTXO{
 			{
 				TxId:      tx1.Hash,
-				TypeValue: ZERO_ARRAY_HASH,
+				TypeValue: ZeroArrayHash,
 				Index:     0,
 				Value:     output0.Value,
 				PkeyTo:    output0.PkeyTo,
@@ -248,7 +248,7 @@ func TestDatabase(t *testing.T) {
 			},
 			{
 				TxId:      tx1.Hash,
-				TypeValue: ZERO_ARRAY_HASH,
+				TypeValue: ZeroArrayHash,
 				Index:     1,
 				Value:     output1.Value,
 				PkeyTo:    output1.PkeyTo,
@@ -286,7 +286,7 @@ func TestDatabase(t *testing.T) {
 	t.Run("insert_block2", func(t *testing.T) {
 		err := db.SaveNextBlock(&B_AND_H2)
 		assert.Nil(t, err)
-		blocksReceived, err := db.GetBlocksByHashes([][HASH_SIZE]byte{
+		blocksReceived, err := db.GetBlocksByHashes([][HashSize]byte{
 			B_AND_H2.Hash,
 		})
 		assert.Nil(t, err)
@@ -297,7 +297,7 @@ func TestDatabase(t *testing.T) {
 		assert.Equal(t, B_AND_H2.Hash, blockHash(blocksReceived[0].B))
 	})
 	t.Run("get_txs_by_id_1", func(t *testing.T) {
-		hashes := [][HASH_SIZE]byte{
+		hashes := [][HashSize]byte{
 			BLOCK1.Trans[1].Hash,
 			BLOCK2.Trans[0].Hash,
 			BLOCK2.Trans[1].Hash,
@@ -312,7 +312,7 @@ func TestDatabase(t *testing.T) {
 		assert.ElementsMatch(t, txsExpected, txsReceived)
 	})
 	t.Run("get_blocks_by_hash", func(t *testing.T) {
-		hashes := [][HASH_SIZE]byte{
+		hashes := [][HashSize]byte{
 			B_AND_H1.Hash,
 			B_AND_H2.Hash,
 		}
@@ -325,11 +325,11 @@ func TestDatabase(t *testing.T) {
 		assert.ElementsMatch(t, blocksExpected, blocksReceived)
 	})
 	t.Run("get_blocks_by_hash_but_not_all_valid", func(t *testing.T) {
-		hashes := [][HASH_SIZE]byte{
+		hashes := [][HashSize]byte{
 			B_AND_H0.Hash,
 			B_AND_H2.Hash,
-			ZERO_ARRAY_HASH, // блока с таким хешем нет
-			{1, 2, 32},      // с таким тоже
+			ZeroArrayHash, // блока с таким хешем нет
+			{1, 2, 32},    // с таким тоже
 		}
 		blocksExpected := []*BlocAndkHash{
 			&B_AND_H0,
@@ -340,11 +340,11 @@ func TestDatabase(t *testing.T) {
 		assert.ElementsMatch(t, blocksExpected, blocksReceived)
 	})
 	t.Run("get_txs_by_hash_but_not_all_valid", func(t *testing.T) {
-		hashes := [][HASH_SIZE]byte{
+		hashes := [][HashSize]byte{
 			BLOCK0.Trans[0].Hash,
 			BLOCK2.Trans[0].Hash,
-			ZERO_ARRAY_HASH, // транзы с таким хешем нет
-			{1, 3, 3, 7},    // с таким тоже
+			ZeroArrayHash, // транзы с таким хешем нет
+			{1, 3, 3, 7},  // с таким тоже
 		}
 		txsExpected := []TransAndHash{
 			BLOCK0.Trans[0],
@@ -369,7 +369,7 @@ func TestDatabase(t *testing.T) {
 		utxosExpected := []*UTXO{
 			{
 				TxId:      tx0.Hash,
-				TypeValue: ZERO_ARRAY_HASH,
+				TypeValue: ZeroArrayHash,
 				Index:     0,
 				Value:     output0.Value,
 				PkeyTo:    pkey,
@@ -377,7 +377,7 @@ func TestDatabase(t *testing.T) {
 			},
 			{
 				TxId:      tx1.Hash,
-				TypeValue: ZERO_ARRAY_HASH,
+				TypeValue: ZeroArrayHash,
 				Index:     0,
 				Value:     output1.Value,
 				PkeyTo:    pkey,
@@ -400,7 +400,7 @@ func TestDatabase(t *testing.T) {
 	t.Run("insert_block3_with_optional_fields", func(t *testing.T) {
 		err := db.SaveNextBlock(&B_AND_H3)
 		assert.Nil(t, err)
-		blocksReceived, err := db.GetBlocksByHashes([][HASH_SIZE]byte{
+		blocksReceived, err := db.GetBlocksByHashes([][HashSize]byte{
 			B_AND_H3.Hash,
 		})
 		assert.Nil(t, err)
@@ -462,7 +462,7 @@ func TestDatabase(t *testing.T) {
 	t.Run("insert_block_4_with_more_optional_fields", func(t *testing.T) {
 		err := db.SaveNextBlock(&B_AND_H4)
 		assert.Nil(t, err)
-		blocksReceived, err := db.GetBlocksByHashes([][HASH_SIZE]byte{
+		blocksReceived, err := db.GetBlocksByHashes([][HashSize]byte{
 			B_AND_H4.Hash,
 		})
 		assert.Nil(t, err)
@@ -479,7 +479,7 @@ func TestDatabase(t *testing.T) {
 		utxosExpected := []*UTXO{
 			{
 				TxId:      tx1.Hash,
-				TypeValue: ZERO_ARRAY_HASH,
+				TypeValue: ZeroArrayHash,
 				Index:     0,
 				Value:     3000,
 				PkeyTo:    pkey,

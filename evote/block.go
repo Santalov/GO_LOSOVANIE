@@ -7,25 +7,25 @@ import (
 
 type BlocAndkHash struct {
 	B    *Block
-	Hash [HASH_SIZE]byte
+	Hash [HashSize]byte
 }
 
 type Block struct {
-	PrevBlockHash [HASH_SIZE]byte
-	MerkleTree    [HASH_SIZE]byte
-	proposerPkey  [PKEY_SIZE]byte
+	PrevBlockHash [HashSize]byte
+	MerkleTree    [HashSize]byte
+	proposerPkey  [PkeySize]byte
 	Timestamp     uint64
 	TransSize     uint32
 	Trans         []TransAndHash
 }
 
 func (b *Block) ToBytes() []byte {
-	var data = make([]byte, MIN_BLOCK_SIZE)
-	copy(data[:HASH_SIZE], b.PrevBlockHash[:])
-	copy(data[HASH_SIZE:2*HASH_SIZE], b.MerkleTree[:])
-	copy(data[2*HASH_SIZE:2*HASH_SIZE+PKEY_SIZE], b.proposerPkey[:])
-	binary.LittleEndian.PutUint64(data[2*HASH_SIZE:2*HASH_SIZE+INT_32_SIZE*2], b.Timestamp)
-	binary.LittleEndian.PutUint32(data[2*HASH_SIZE+INT_32_SIZE*2:MIN_BLOCK_SIZE], b.TransSize)
+	var data = make([]byte, MinBlockSize)
+	copy(data[:HashSize], b.PrevBlockHash[:])
+	copy(data[HashSize:2*HashSize], b.MerkleTree[:])
+	copy(data[2*HashSize:2*HashSize+PkeySize], b.proposerPkey[:])
+	binary.LittleEndian.PutUint64(data[2*HashSize:2*HashSize+Int32Size*2], b.Timestamp)
+	binary.LittleEndian.PutUint32(data[2*HashSize+Int32Size*2:MinBlockSize], b.TransSize)
 	for _, t := range b.Trans {
 		data = append(data, t.Transaction.ToBytes()...)
 	}
@@ -33,25 +33,25 @@ func (b *Block) ToBytes() []byte {
 }
 
 func (b *Block) FromBytes(data []byte) int {
-	if len(data) < MIN_BLOCK_SIZE {
-		return ERR_BLOCK_SIZE
+	if len(data) < MinBlockSize {
+		return ErrBlockSize
 	}
-	var offset = HASH_SIZE
+	var offset = HashSize
 	copy(b.PrevBlockHash[:], data[:offset])
-	copy(b.MerkleTree[:], data[offset:offset+HASH_SIZE])
-	offset += HASH_SIZE
-	copy(b.proposerPkey[:], data[offset:offset+PKEY_SIZE])
-	offset += PKEY_SIZE
-	b.Timestamp = binary.LittleEndian.Uint64(data[offset : offset+INT_32_SIZE*2])
-	offset += INT_32_SIZE * 2
-	b.TransSize = binary.LittleEndian.Uint32(data[offset : offset+INT_32_SIZE])
+	copy(b.MerkleTree[:], data[offset:offset+HashSize])
+	offset += HashSize
+	copy(b.proposerPkey[:], data[offset:offset+PkeySize])
+	offset += PkeySize
+	b.Timestamp = binary.LittleEndian.Uint64(data[offset : offset+Int32Size*2])
+	offset += Int32Size * 2
+	b.TransSize = binary.LittleEndian.Uint32(data[offset : offset+Int32Size])
 	return OK
 }
 
-func (b *Block) BuildMerkleTree() [HASH_SIZE]byte {
+func (b *Block) BuildMerkleTree() [HashSize]byte {
 	hashes := make([][]byte, 0)
 	if len(b.Trans) == 0 {
-		hashes = append(hashes, ZERO_ARRAY_HASH[:])
+		hashes = append(hashes, ZeroArrayHash[:])
 	}
 	for _, t := range b.Trans {
 		hashes = append(hashes, t.Hash[:])
@@ -71,8 +71,8 @@ func (b *Block) BuildMerkleTree() [HASH_SIZE]byte {
 		}
 		hashes = nextHashes
 	}
-	var hash [HASH_SIZE]byte
-	copy(hash[:], hashes[0][:HASH_SIZE])
+	var hash [HashSize]byte
+	copy(hash[:], hashes[0][:HashSize])
 	return hash
 }
 
@@ -82,9 +82,9 @@ func (b *Block) HashBlock(data []byte) []byte {
 
 func (b *Block) CreateBlock(
 	t []TransAndHash,
-	prevHash [HASH_SIZE]byte,
+	prevHash [HashSize]byte,
 	timestamp time.Time,
-	proposerPkey [PKEY_SIZE]byte,
+	proposerPkey [PkeySize]byte,
 ) {
 	b.Trans = append(b.Trans, t...)
 	b.PrevBlockHash = prevHash

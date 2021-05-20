@@ -2,72 +2,69 @@ package evote
 
 //err codes
 const (
-	OK                = 0
-	ERR_TRANS_SIZE    = -1
-	ERR_TRANS_VERIFY  = -2
-	ERR_BLOCK_SIZE    = -3
-	ERR_BLOCK_VERIFY  = -4
-	ERR_BLOCK_CREATOR = -5
-	ERR_UTXO_SIZE     = -6
-	ERR_CREATE_TRANS  = -7
+	OK              = 0
+	ErrTransSize    = -1
+	ErrTransVerify  = -2
+	ErrBlockSize    = -3
+	ErrBlockVerify  = -4
+	ErrBlockCreator = -5
+	ErrUtxoSize     = -6
+	ErrCreateTrans  = -7
 )
 
-// return codes for CheckTx and DeliveryTx abci methods
+// return codes for CheckTx and DeliveryTx abci methods, for client request handlers
 const (
-	CODE_OK uint32 = iota
-	CODE_PARSE_ERR
-	CODE_NO_OUTPUTS
-	CODE_HASH_LINK_AND_TYPE_VOTE_TOGETHER
-	CODE_DOBULE_SPENDING
-	CODE_MIXING_TYPE_VALUE
-	CODE_INPUTS_NOT_MATCH_OUTPUTS
-	CODE_INVALID_SIGNATURE
-	CODE_COINBASE_TX_NO_OUTPUT
-	CODE_COINBASE_NO_BLOCK
-	CODE_COINBASE_PROPOSER_MISMATCH
-	CODE_COINBASE_INCORRECT_REWARD
-	CODE_DOUBLE_COINBASE_FOR_SAME_BLOCK
+	CodeOk uint32 = iota
+	CodeParseErr
+	CodeNoOutputs
+	CodeHashLinkAndTypeVoteTogether
+	CodeDoubleSpending
+	CodeMixingTypeValue
+	CodeInputsNotMatchOutputs
+	CodeInvalidSignature
+	CodeCoinbaseTxNoOutput
+	CodeCoinbaseNoBlock
+	CodeCoinbaseProposerMismatch
+	CodeCoinbaseIncorrectReward
+	CodeDoubleCoinbaseForSameBlock
+	CodeInvalidDataLen
+	CodeDatabaseFailed
+	CodeBroadcastTxFailed
+	CodeUnknownPath
 )
 
 //size consts
 const (
-	INT_32_SIZE           = 4
-	SIG_SIZE              = 64
-	PKEY_SIZE             = 33
-	TM_PKEY_SIZE          = 32 // TM is abbr from tendermint
-	TM_ADDR_SIZE          = 20
-	HASH_SIZE             = 32
-	TRANS_OUTPUT_SIZE     = INT_32_SIZE + PKEY_SIZE
-	TRANS_INPUT_SIZE      = HASH_SIZE + INT_32_SIZE
-	MIN_TRANS_SIZE        = INT_32_SIZE*4 + TRANS_OUTPUT_SIZE + SIG_SIZE + HASH_SIZE*2
-	MIN_BLOCK_SIZE        = HASH_SIZE*2 + PKEY_SIZE + INT_32_SIZE*3
-	MAX_BLOCK_SIZE        = 1 * 1024 * 1024
-	MAX_TRANS_SIZE        = 100 //тут стоит заглушка, не более 100 транз в блоке
-	REWARD                = 1000
-	MAX_PREV_BLOCK_HASHES = 10
-	UTXO_SIZE             = HASH_SIZE*2 + 4*INT_32_SIZE + PKEY_SIZE
+	Int32Size       = 4
+	SigSize         = 64
+	PkeySize        = 33
+	TmPkeySize      = 32 // TM is abbr from tendermint
+	TmAddrSize      = 20
+	HashSize        = 32
+	TransOutputSize = Int32Size + PkeySize
+	TransInputSize  = HashSize + Int32Size
+	MinTransSize    = Int32Size*4 + TransOutputSize + SigSize + HashSize*2
+	MinBlockSize    = HashSize*2 + PkeySize + Int32Size*3
+	MaxBlockSize    = 1 * 1024 * 1024
+	RewardCoins     = 1000
+	UtxoSize        = HashSize*2 + 4*Int32Size + PkeySize
 )
 
 const (
-	ONE_VOTE_TYPE     = 0x01
-	PERCENT_VOTE_TYPE = 0x02
+	OneVoteType     = 0x01
+	PercentVoteType = 0x02
 )
 
-var ZERO_ARRAY_HASH = [HASH_SIZE]byte{}
+var ZeroArrayHash = [HashSize]byte{}
 
-var ZERO_ARRAY_SIG = [SIG_SIZE]byte{}
+var ZeroArraySig = [SigSize]byte{}
 
-var ZERO_ARRAY_PKEY = [PKEY_SIZE]byte{}
-
-// network vars
-const (
-	PORT = 1337
-)
+var ZeroArrayPkey = [PkeySize]byte{}
 
 //database fields
 const (
-	DBNAME     = "blockchain"
-	DBUSER     = "blockchain"
-	DBPASSWORD = "ffff"
-	DBHOST     = "localhost"
+	DbName     = "blockchain"
+	DbUser     = "blockchain"
+	DbPassword = "ffff"
+	DbHost     = "localhost"
 )

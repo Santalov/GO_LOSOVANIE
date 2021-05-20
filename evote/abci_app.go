@@ -7,9 +7,9 @@ import (
 )
 
 type ValidatorNode struct {
-	Pkey           [PKEY_SIZE]byte
+	Pkey           [PkeySize]byte
 	IpAndPort      string // адрес вида 1.1.1.1:1337
-	TendermintAddr [TM_ADDR_SIZE]byte
+	TendermintAddr [TmAddrSize]byte
 }
 
 type BlockchainApp struct {
@@ -21,11 +21,11 @@ type BlockchainApp struct {
 	thisValidator *ValidatorNode // contains key for consensus
 	//map для удобного получения валидаторов
 	addrToValidator           map[string]*ValidatorNode
-	pkeyToValidator           map[[PKEY_SIZE]byte]*ValidatorNode
-	tendermintAddrToValidator map[[TM_ADDR_SIZE]byte]*ValidatorNode // map form consensus keys into validators
-	appBlockHash              [HASH_SIZE]byte                       // hash of the last committed block
-	appHeight                 int64                                 // number of the last committed block
-	checkTxState              *TxExecutor                           // TODO: move transaction execution logic into separate struct
+	pkeyToValidator           map[[PkeySize]byte]*ValidatorNode
+	tendermintAddrToValidator map[[TmAddrSize]byte]*ValidatorNode // map form consensus keys into validators
+	appBlockHash              [HashSize]byte                      // hash of the last committed block
+	appHeight                 int64                               // number of the last committed block
+	checkTxState              *TxExecutor                         // TODO: move transaction execution logic into separate struct
 	deliverTxState            *TxExecutor
 
 	version    string
@@ -58,8 +58,8 @@ func (bc *BlockchainApp) setup(
 	bc.thisKey = &k
 
 	bc.addrToValidator = make(map[string]*ValidatorNode)
-	bc.pkeyToValidator = make(map[[PKEY_SIZE]byte]*ValidatorNode)
-	bc.tendermintAddrToValidator = make(map[[TM_ADDR_SIZE]byte]*ValidatorNode)
+	bc.pkeyToValidator = make(map[[PkeySize]byte]*ValidatorNode)
+	bc.tendermintAddrToValidator = make(map[[TmAddrSize]byte]*ValidatorNode)
 	bc.validators = validators
 	bc.version = version
 	bc.appVersion = appVersion
@@ -77,12 +77,12 @@ func (bc *BlockchainApp) setup(
 	}
 
 	//load prev from DB
-	bc.appBlockHash = ZERO_ARRAY_HASH
+	bc.appBlockHash = ZeroArrayHash
 
 	bc.appHeight = 0
 
 	bc.db = new(Database)
-	err := bc.db.Init(DBNAME, DBUSER, DBPASSWORD, DBHOST, dbPort)
+	err := bc.db.Init(DbName, DbUser, DbPassword, DbHost, dbPort)
 	if err != nil {
 		panic(err)
 	}
@@ -101,7 +101,7 @@ func (bc *BlockchainApp) initNetwork() {
 }
 
 func (bc *BlockchainApp) getValidator(tendermintAddr []byte) *ValidatorNode {
-	var tmAddr [TM_ADDR_SIZE]byte
+	var tmAddr [TmAddrSize]byte
 	copy(tmAddr[:], tendermintAddr)
 	return bc.tendermintAddrToValidator[tmAddr]
 }
@@ -148,12 +148,11 @@ func (bc *BlockchainApp) EndBlock(req abcitypes.RequestEndBlock) abcitypes.Respo
 	return abcitypes.ResponseEndBlock{}
 }
 
-// function blocks thread
-func (bc *BlockchainApp) broadcastTxUntilSuccess(tx []byte) {
-	maxErrors := len(bc.validators)
+// BroadcastTxUntilSuccess function blocks thread, until success or error broadcast
+func BroadcastTxUntilSuccess(nw *Network, tx []byte) {
+	maxErrors := len(nw.allHosts)
 	errors := 0
 	// Network has internal state, so for thread safety copy it
-	nw := bc.nw.Copy()
 	for {
 		_, err := nw.BroadcastTxSync(tx)
 		if err == nil {
@@ -174,10 +173,10 @@ func (bc *BlockchainApp) broadcastTxUntilSuccess(tx []byte) {
 }
 
 // function blocks thread
-func (bc *BlockchainApp) broadcastRewardForMe(blockHash [HASH_SIZE]byte) {
+func (bc *BlockchainApp) broadcastRewardForMe(blockHash [HashSize]byte) {
 	var t Transaction
 	t.CreateMiningReward(bc.thisKey, blockHash)
-	bc.broadcastTxUntilSuccess(t.ToBytes())
+	BroadcastTxUntilSuccess(bc.nw.Copy(), t.ToBytes())
 }
 
 func (bc *BlockchainApp) Commit() abcitypes.ResponseCommit {
@@ -227,9 +226,49 @@ func (bc *BlockchainApp) ApplySnapshotChunk(chunk abcitypes.RequestApplySnapshot
 	return abcitypes.ResponseApplySnapshotChunk{}
 }
 
+func respondAbciQuery(code uint32, err error, value []byte) abcitypes.ResponseQuery {
+	if err != nil {
+		return abcitypes.ResponseQuery{
+			Code: code,
+			Log:  err.Error(),
+		}
+	} else {
+		return abcitypes.ResponseQuery{
+			Code:  code,
+			Value: value,
+		}
+	}
+}
+
 func (bc *BlockchainApp) Query(reqQuery abcitypes.RequestQuery) abcitypes.ResponseQuery {
 	fmt.Println("query", reqQuery.Path, reqQuery.Data)
-	return abcitypes.ResponseQuery{}
+	switch reqQuery.Path {
+	case "getTxs":
+		return respondAbciQuery(
+			OnGetTxsByHashes(bc.db, reqQuery.Data),
+		)
+	case "getTxsByPubKey":
+		return respondAbciQuery(
+			OnGetTxsByPkey(bc.db, reqQuery.Data),
+		)
+	case "getUtxosByPubKey":
+		return respondAbciQuery(
+			OnGetUtxosByPkey(bc.db, reqQuery.Data),
+		)
+	case "faucet":
+		return respondAbciQuery(
+			OnFaucet(bc.db, bc.nw, bc.thisKey, reqQuery.Data),
+		)
+	case "getVoteResult":
+		return respondAbciQuery(
+			OnGetVoteResult(bc.db, reqQuery.Data),
+		)
+	}
+
+	return abcitypes.ResponseQuery{
+		Code: CodeUnknownPath,
+		Log:  "no such path, check in request is correct",
+	}
 }
 
 func (bc *BlockchainApp) InitChain(req abcitypes.RequestInitChain) abcitypes.ResponseInitChain {

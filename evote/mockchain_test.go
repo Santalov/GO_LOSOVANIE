@@ -6,39 +6,39 @@ import (
 )
 
 type keyPair struct {
-	pub  [PKEY_SIZE]byte
+	pub  [PkeySize]byte
 	priv []byte
 }
 
-func randPkey() [PKEY_SIZE]byte {
-	res := make([]byte, PKEY_SIZE, PKEY_SIZE)
+func randPkey() [PkeySize]byte {
+	res := make([]byte, PkeySize, PkeySize)
 	_, err := rand.Read(res)
 	if err != nil {
 		panic(err)
 	}
-	resres := [PKEY_SIZE]byte{}
+	resres := [PkeySize]byte{}
 	copy(resres[:], res)
 	return resres
 }
 
-func randHash() [HASH_SIZE]byte {
-	res := make([]byte, HASH_SIZE, HASH_SIZE)
+func randHash() [HashSize]byte {
+	res := make([]byte, HashSize, HashSize)
 	_, err := rand.Read(res)
 	if err != nil {
 		panic(err)
 	}
-	resres := [HASH_SIZE]byte{}
+	resres := [HashSize]byte{}
 	copy(resres[:], res)
 	return resres
 }
 
-func randSig() [SIG_SIZE]byte {
-	res := make([]byte, SIG_SIZE, SIG_SIZE)
+func randSig() [SigSize]byte {
+	res := make([]byte, SigSize, SigSize)
 	_, err := rand.Read(res)
 	if err != nil {
 		panic(err)
 	}
-	resres := [SIG_SIZE]byte{}
+	resres := [SigSize]byte{}
 	copy(resres[:], res)
 	return resres
 }
@@ -74,7 +74,7 @@ var keyPairs = []keyPair{
 	},
 }
 
-func makeCoinbaseTx(val uint32, pkeyTo [PKEY_SIZE]byte, rewardForBlock [HASH_SIZE]byte) *Transaction {
+func makeCoinbaseTx(val uint32, pkeyTo [PkeySize]byte, rewardForBlock [HashSize]byte) *Transaction {
 	return &Transaction{
 		InputSize:  0,
 		Inputs:     nil,
@@ -89,18 +89,18 @@ func makeCoinbaseTx(val uint32, pkeyTo [PKEY_SIZE]byte, rewardForBlock [HASH_SIZ
 		HashLink:  rewardForBlock,
 		Signature: randSig(),
 		TypeVote:  0,
-		TypeValue: ZERO_ARRAY_HASH,
+		TypeValue: ZeroArrayHash,
 	}
 }
 
-func txHash(tx *Transaction) [HASH_SIZE]byte {
-	res := [HASH_SIZE]byte{}
+func txHash(tx *Transaction) [HashSize]byte {
+	res := [HashSize]byte{}
 	copy(res[:], Hash(tx.ToBytes()))
 	return res
 }
 
-func blockHash(block *Block) [HASH_SIZE]byte {
-	var res [HASH_SIZE]byte
+func blockHash(block *Block) [HashSize]byte {
+	var res [HashSize]byte
 	copy(res[:], Hash(block.ToBytes()))
 	return res
 }
@@ -119,7 +119,7 @@ func appendHashes(txs []*Transaction) []TransAndHash {
 var TXS_BLOCKZ = []*Transaction{}
 
 var BLOCKZ = Block{
-	PrevBlockHash: ZERO_ARRAY_HASH,
+	PrevBlockHash: ZeroArrayHash,
 	MerkleTree:    randHash(),
 	Timestamp:     uint64(time.Now().Add(-10 * time.Second).UnixNano()),
 	TransSize:     uint32(len(TXS_BLOCKZ)),
@@ -163,9 +163,9 @@ var TXS_BLOCK1 = []*Transaction{
 		},
 		Duration:  0,
 		TypeVote:  0,
-		TypeValue: ZERO_ARRAY_HASH,
+		TypeValue: ZeroArrayHash,
 		Signature: randSig(),
-		HashLink:  ZERO_ARRAY_HASH,
+		HashLink:  ZeroArrayHash,
 	},
 }
 
@@ -205,9 +205,9 @@ var TXS_BLOCK2 = []*Transaction{
 		},
 		Duration:  0,
 		TypeVote:  0,
-		TypeValue: ZERO_ARRAY_HASH,
+		TypeValue: ZeroArrayHash,
 		Signature: randSig(),
-		HashLink:  ZERO_ARRAY_HASH,
+		HashLink:  ZeroArrayHash,
 	},
 }
 
@@ -247,8 +247,8 @@ var TXS_BLOCK3 = []*Transaction{
 		},
 		Duration:  100,
 		TypeVote:  1, // у транзы создания голосования ненулевой id
-		TypeValue: ZERO_ARRAY_HASH,
-		HashLink:  ZERO_ARRAY_HASH,
+		TypeValue: ZeroArrayHash,
+		HashLink:  ZeroArrayHash,
 	},
 }
 
@@ -281,7 +281,7 @@ var TXS_BLOCK4 = []*Transaction{
 		Duration:  0,
 		TypeVote:  0,
 		TypeValue: txHash(TXS_BLOCK3[1]),
-		HashLink:  ZERO_ARRAY_HASH,
+		HashLink:  ZeroArrayHash,
 	},
 }
 

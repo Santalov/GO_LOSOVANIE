@@ -38,7 +38,7 @@ func send(keys *evote.CryptoKeysData, n *evote.Network) {
 		if err != nil {
 			return errors.New("invalid hex")
 		}
-		if len(pkey) != evote.PKEY_SIZE {
+		if len(pkey) != evote.PkeySize {
 			return errors.New("invalid pkey size")
 		}
 		return nil
@@ -57,22 +57,20 @@ func send(keys *evote.CryptoKeysData, n *evote.Network) {
 	}
 
 	receiverSlice, _ := hex.DecodeString(receiverStr)
-	var receiver [evote.PKEY_SIZE]byte
+	var receiver [evote.PkeySize]byte
 	copy(receiver[:], receiverSlice)
 
-	outputs := make(map[[evote.PKEY_SIZE]byte]uint32)
+	outputs := make(map[[evote.PkeySize]byte]uint32)
 	outputs[receiver] = amount
 
 	pkey := keys.PubkeyByte
 	utxos, err := n.GetUtxosByPkey(pkey)
-	if err != nil {
-		if retryQuestion(n) {
-			send(keys, n)
-		}
+	if retryQuestion(err, n) {
+		send(keys, n)
 	}
 	var tx evote.Transaction
-	retCode := tx.CreateTrans(utxos, outputs, evote.ZERO_ARRAY_HASH, keys, 0, 0, false)
-	if retCode == evote.ERR_CREATE_TRANS {
+	retCode := tx.CreateTrans(utxos, outputs, evote.ZeroArrayHash, keys, 0, 0, false)
+	if retCode == evote.ErrCreateTrans {
 		fmt.Println("insufficient balance")
 		return
 	}
@@ -85,9 +83,7 @@ func send(keys *evote.CryptoKeysData, n *evote.Network) {
 
 func sendTx(tx *evote.Transaction, n *evote.Network) {
 	err := n.SubmitTx(tx.ToBytes())
-	if err != nil {
-		if retryQuestion(n) {
-			sendTx(tx, n)
-		}
+	if retryQuestion(err, n) {
+		sendTx(tx, n)
 	}
 }

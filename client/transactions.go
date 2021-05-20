@@ -8,10 +8,8 @@ import (
 func transactions(keys *evote.CryptoKeysData, n *evote.Network) {
 	pkey := keys.PubkeyByte
 	txs, err := n.GetTxsByPkey(pkey)
-	if err != nil {
-		if retryQuestion(n) {
-			transactions(keys, n)
-		}
+	if retryQuestion(err, n) {
+		transactions(keys, n)
 	}
 	for i, tx := range txs {
 		fmt.Printf("typeValue: %v\n", bToHex(tx.TypeValue[:]))

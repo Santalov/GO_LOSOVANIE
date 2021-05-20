@@ -41,9 +41,9 @@ func LoadValidators(pathToValidatorsKeys string) ([]*ValidatorNode, error) {
 		if err != nil {
 			return nil, err
 		}
-		var addr [TM_ADDR_SIZE]byte
+		var addr [TmAddrSize]byte
 		copy(addr[:], addrSlice)
-		var pkey [PKEY_SIZE]byte
+		var pkey [PkeySize]byte
 		copy(pkey[:], pkeySlice)
 		node := &ValidatorNode{
 			Pkey:           pkey,

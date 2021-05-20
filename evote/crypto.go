@@ -14,7 +14,7 @@ var expCoff = big.NewInt(0).Div(big.NewInt(0).Add(curve.P, big.NewInt(1)), big.N
 type CryptoKeysData struct {
 	PrivateKey *gost3410.PrivateKey
 	PublickKey *gost3410.PublicKey
-	PubkeyByte [PKEY_SIZE]byte
+	PubkeyByte [PkeySize]byte
 }
 
 func Hash(data []byte) []byte {
@@ -45,11 +45,11 @@ func (keys *CryptoKeysData) Sign(data []byte) []byte {
 }
 
 func (keys *CryptoKeysData) AppendSign(data []byte) []byte {
-	res := keys.Sign(append(data, ZERO_ARRAY_SIG[:]...))
+	res := keys.Sign(append(data, ZeroArraySig[:]...))
 	return append(data, res...)
 }
 
-func VerifyData(data, signature []byte, pkey [PKEY_SIZE]byte) bool {
+func VerifyData(data, signature []byte, pkey [PkeySize]byte) bool {
 	var pkeyX = pkey[1:]
 	for i, j := 0, len(pkeyX)-1; i < j; i, j = i+1, j-1 {
 		pkeyX[i], pkeyX[j] = pkeyX[j], pkeyX[i]
@@ -82,9 +82,9 @@ func VerifyData(data, signature []byte, pkey [PKEY_SIZE]byte) bool {
 	key.C = curve
 	key.X = x
 	key.Y = y
-	digest := make([]byte, len(data)+SIG_SIZE)
+	digest := make([]byte, len(data)+SigSize)
 	copy(digest[:len(data)], data)
-	copy(digest[len(data):], ZERO_ARRAY_SIG[:])
+	copy(digest[len(data):], ZeroArraySig[:])
 	res, err := key.VerifyDigest(digest, signature)
 	if err != nil {
 		fmt.Println("verify digest error", err)

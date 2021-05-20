@@ -8,13 +8,13 @@ import (
 	"github.com/manifoldco/promptui"
 )
 
-func enterVotingId(keys *evote.CryptoKeysData, n *evote.Network) (*[evote.HASH_SIZE]byte, error) {
+func enterVotingId() (*[evote.HashSize]byte, error) {
 	validateHash := func(input string) error {
 		pkey, err := hex.DecodeString(input)
 		if err != nil {
 			return errors.New("invalid hex")
 		}
-		if len(pkey) != evote.HASH_SIZE {
+		if len(pkey) != evote.HashSize {
 			return errors.New("invalid txid size")
 		}
 		return nil
@@ -33,12 +33,12 @@ func enterVotingId(keys *evote.CryptoKeysData, n *evote.Network) (*[evote.HASH_S
 	}
 
 	typeValueSlice, _ := hex.DecodeString(typeValueStr)
-	var typeValue [evote.HASH_SIZE]byte
+	var typeValue [evote.HashSize]byte
 	copy(typeValue[:], typeValueSlice)
 	return &typeValue, nil
 }
 
-func voteMenu(keys *evote.CryptoKeysData, n *evote.Network, typeValue [evote.HASH_SIZE]byte) {
+func voteMenu(keys *evote.CryptoKeysData, n *evote.Network, typeValue [evote.HashSize]byte) {
 	prompt := promptui.Select{
 		Label: "Select vote type",
 		Items: []string{"Info", "See results", "Send vote"},
@@ -64,33 +64,29 @@ func vote(keys *evote.CryptoKeysData, n *evote.Network) {
 	pkey := keys.PubkeyByte
 	//priv := keys.PrivateKey
 	utxos, err := n.GetUtxosByPkey(pkey)
-	if err != nil {
-		if retryQuestion(n) {
-			vote(keys, n)
-		}
+	if retryQuestion(err, n) {
+		vote(keys, n)
 	}
 	txs, err := n.GetTxsByPkey(pkey)
-	if err != nil {
-		if retryQuestion(n) {
-			vote(keys, n)
-		}
+	if retryQuestion(err, n) {
+		vote(keys, n)
 	}
 	//key - typeValue, value - outputs sum
-	votings := make(map[[evote.HASH_SIZE]byte]uint32)
+	votings := make(map[[evote.HashSize]byte]uint32)
 
 	for _, tx := range txs {
-		if tx.TypeValue != evote.ZERO_ARRAY_HASH {
+		if tx.TypeValue != evote.ZeroArrayHash {
 			votings[tx.TypeValue] = 0
 		}
 		if tx.TypeVote != 0 {
-			var typeValue [evote.HASH_SIZE]byte
+			var typeValue [evote.HashSize]byte
 			copy(typeValue[:], evote.Hash(tx.ToBytes()))
 			votings[typeValue] = 0
 		}
 	}
 
 	for _, utxo := range utxos {
-		if utxo.TypeValue != evote.ZERO_ARRAY_HASH {
+		if utxo.TypeValue != evote.ZeroArrayHash {
 			votings[utxo.TypeValue] += utxo.Value
 		}
 	}
@@ -98,7 +94,7 @@ func vote(keys *evote.CryptoKeysData, n *evote.Network) {
 	options := make([]string, 2)
 	options[0] = "Create voting"
 	options[1] = "Enter voting id"
-	optionToId := make(map[string][evote.HASH_SIZE]byte)
+	optionToId := make(map[string][evote.HashSize]byte)
 	for voteId, balance := range votings {
 		option := fmt.Sprintf("id: %v  votes: %v", bToHex(voteId[:]), balance)
 		options = append(options, option)
@@ -119,7 +115,7 @@ func vote(keys *evote.CryptoKeysData, n *evote.Network) {
 	if result == options[0] {
 		createVoting(keys, n)
 	} else if result == options[1] {
-		typeValue, err := enterVotingId(keys, n)
+		typeValue, err := enterVotingId()
 		if err == nil {
 			voteMenu(keys, n, *typeValue)
 		}

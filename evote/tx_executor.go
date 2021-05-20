@@ -8,9 +8,9 @@ import (
 type TxExecutor struct {
 	Transactions   []TransAndHash
 	Timestamp      time.Time
-	BlockProposer  [PKEY_SIZE]byte
+	BlockProposer  [PkeySize]byte
 	db             *Database
-	processedTrans map[[HASH_SIZE]byte]bool
+	processedTrans map[[HashSize]byte]bool
 }
 
 func NewTxExecutor(db *Database) *TxExecutor {
@@ -20,11 +20,11 @@ func NewTxExecutor(db *Database) *TxExecutor {
 func (t *TxExecutor) Reset() {
 	// TODO: reset database CheckTxState or DeliverTxState
 	t.Transactions = nil
-	t.BlockProposer = ZERO_ARRAY_PKEY
-	t.processedTrans = make(map[[HASH_SIZE]byte]bool)
+	t.BlockProposer = ZeroArrayPkey
+	t.processedTrans = make(map[[HashSize]byte]bool)
 }
 
-func (t *TxExecutor) BeginBlock(timestamp time.Time, blockProposer [PKEY_SIZE]byte) {
+func (t *TxExecutor) BeginBlock(timestamp time.Time, blockProposer [PkeySize]byte) {
 	t.Timestamp = timestamp
 	t.BlockProposer = blockProposer
 }
@@ -43,30 +43,30 @@ func (t *TxExecutor) AppendTx(data []byte, ignoreDuplicates bool) (code uint32) 
 
 	if ignoreDuplicates {
 		if t.processedTrans[txAndHash.Hash] {
-			return CODE_OK
+			return CodeOk
 		}
 	}
 
-	if transSize == ERR_TRANS_SIZE {
+	if transSize == ErrTransSize {
 		fmt.Println("err: tx not parsed")
-		return CODE_PARSE_ERR
+		return CodeParseErr
 	}
 
 	if tx.OutputSize == 0 {
 		fmt.Println("err: no outputs")
-		return CODE_NO_OUTPUTS
+		return CodeNoOutputs
 	}
 
-	if tx.HashLink != ZERO_ARRAY_HASH && tx.TypeVote != 0 {
+	if tx.HashLink != ZeroArrayHash && tx.TypeVote != 0 {
 		// coinbase transactions have non-zero hashlink, pointing on a block, for which reward is being distributed
 		fmt.Println("err: trans with non-zero HashLink has incorrect TypeValue/TypeVote fields")
-		return CODE_HASH_LINK_AND_TYPE_VOTE_TOGETHER
+		return CodeHashLinkAndTypeVoteTogether
 	}
 
-	if tx.HashLink != ZERO_ARRAY_HASH && tx.InputSize == 0 {
+	if tx.HashLink != ZeroArrayHash && tx.InputSize == 0 {
 		// this is coinbase tx, need to check receiver and double spending
 		if tx.OutputSize != 1 {
-			return CODE_COINBASE_TX_NO_OUTPUT
+			return CodeCoinbaseTxNoOutput
 		}
 
 		pkey := tx.Outputs[0].PkeyTo
@@ -77,26 +77,26 @@ func (t *TxExecutor) AppendTx(data []byte, ignoreDuplicates bool) (code uint32) 
 			panic(err)
 		}
 		if duplicate != nil {
-			return CODE_DOUBLE_COINBASE_FOR_SAME_BLOCK
+			return CodeDoubleCoinbaseForSameBlock
 		}
 		block, err := t.db.GetBlockByHash(rewardBlock)
 		if err != nil {
 			panic(err)
 		}
 		if block == nil {
-			return CODE_COINBASE_NO_BLOCK
+			return CodeCoinbaseNoBlock
 		}
 		if block.B.proposerPkey != pkey {
-			return CODE_COINBASE_PROPOSER_MISMATCH
+			return CodeCoinbaseProposerMismatch
 		}
-		if rewardValue != REWARD {
-			return CODE_COINBASE_INCORRECT_REWARD
+		if rewardValue != RewardCoins {
+			return CodeCoinbaseIncorrectReward
 		}
 		return t.verifySigAndAppend(data, transSize, txAndHash, pkey)
 	}
 
 	var inputsSum, outputsSum uint32
-	var pkey [PKEY_SIZE]byte
+	var pkey [PkeySize]byte
 	for i, input := range tx.Inputs {
 		var correspondingUtxo *UTXO
 		utxos, err := t.db.GetUTXOSByTxId(input.PrevId)
@@ -119,13 +119,13 @@ func (t *TxExecutor) AppendTx(data []byte, ignoreDuplicates bool) (code uint32) 
 		}
 		if correspondingUtxo == nil {
 			fmt.Println("err: double spending in tx")
-			return CODE_DOBULE_SPENDING
+			return CodeDoubleSpending
 		}
 		inputsSum += correspondingUtxo.Value
 		// проверка, что в одной транзе не смешиваются разные typeValue
-		if tx.HashLink == ZERO_ARRAY_HASH && tx.TypeVote == 0 && correspondingUtxo.TypeValue != tx.TypeValue {
+		if tx.HashLink == ZeroArrayHash && tx.TypeVote == 0 && correspondingUtxo.TypeValue != tx.TypeValue {
 			fmt.Println("err: incorrect typeValue in input", input)
-			return CODE_MIXING_TYPE_VALUE
+			return CodeMixingTypeValue
 		}
 
 	}
@@ -134,19 +134,19 @@ func (t *TxExecutor) AppendTx(data []byte, ignoreDuplicates bool) (code uint32) 
 	}
 	if outputsSum != inputsSum {
 		fmt.Printf("err: outputs sum %v is not matching than inputs sum %v\n", outputsSum, inputsSum)
-		return CODE_INPUTS_NOT_MATCH_OUTPUTS
+		return CodeInputsNotMatchOutputs
 	}
 	return t.verifySigAndAppend(data, transSize, txAndHash, pkey)
 }
 
 func (t *TxExecutor) verifySigAndAppend(
-	data []byte, transSize int, txAndHash TransAndHash, pkey [PKEY_SIZE]byte,
+	data []byte, transSize int, txAndHash TransAndHash, pkey [PkeySize]byte,
 ) (code uint32) {
-	if !VerifyData(data[:transSize-SIG_SIZE], txAndHash.Transaction.Signature[:], pkey) {
+	if !VerifyData(data[:transSize-SigSize], txAndHash.Transaction.Signature[:], pkey) {
 		fmt.Println("err: signature doesnt match")
-		return CODE_INVALID_SIGNATURE
+		return CodeInvalidSignature
 	}
 	t.Transactions = append(t.Transactions, txAndHash)
 	t.processedTrans[txAndHash.Hash] = true
-	return CODE_OK
+	return CodeOk
 }

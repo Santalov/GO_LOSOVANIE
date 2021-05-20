@@ -9,7 +9,7 @@ import (
 	"strconv"
 )
 
-func sendVote(keys *evote.CryptoKeysData, n *evote.Network, typeValue [evote.HASH_SIZE]byte) {
+func sendVote(keys *evote.CryptoKeysData, n *evote.Network, typeValue [evote.HashSize]byte) {
 	validateAmount := func(input string) error {
 		_, err := strconv.ParseInt(input, 10, 64)
 		if err != nil {
@@ -38,7 +38,7 @@ func sendVote(keys *evote.CryptoKeysData, n *evote.Network, typeValue [evote.HAS
 		if err != nil {
 			return errors.New("invalid hex")
 		}
-		if len(pkey) != evote.PKEY_SIZE {
+		if len(pkey) != evote.PkeySize {
 			return errors.New("invalid pkey size")
 		}
 		return nil
@@ -57,22 +57,20 @@ func sendVote(keys *evote.CryptoKeysData, n *evote.Network, typeValue [evote.HAS
 	}
 
 	receiverSlice, _ := hex.DecodeString(receiverStr)
-	var receiver [evote.PKEY_SIZE]byte
+	var receiver [evote.PkeySize]byte
 	copy(receiver[:], receiverSlice)
 
-	outputs := make(map[[evote.PKEY_SIZE]byte]uint32)
+	outputs := make(map[[evote.PkeySize]byte]uint32)
 	outputs[receiver] = amount
 
 	pkey := keys.PubkeyByte
 	utxos, err := n.GetUtxosByPkey(pkey)
-	if err != nil {
-		if retryQuestion(n) {
-			send(keys, n)
-		}
+	if retryQuestion(err, n) {
+		send(keys, n)
 	}
 	var tx evote.Transaction
 	retCode := tx.CreateTrans(utxos, outputs, typeValue, keys, 0, 0, false)
-	if retCode == evote.ERR_CREATE_TRANS {
+	if retCode == evote.ErrCreateTrans {
 		fmt.Println("insufficient balance")
 		return
 	}

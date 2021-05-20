@@ -3,6 +3,7 @@ package evote
 import (
 	"encoding/binary"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	abcitypes "github.com/tendermint/tendermint/abci/types"
@@ -38,7 +39,7 @@ func (n *Network) makeGetRequest(host string, path string, params url.Values) (r
 		rawQuery = params.Encode()
 	}
 	u := &url.URL{Scheme: "http", Host: host, Path: path, RawQuery: rawQuery}
-	fmt.Println("request url:", u.String())
+	//fmt.Println("request url:", u.String())
 	resp, err := http.Get(u.String())
 	if err != nil {
 		fmt.Println("request err: ", err)
@@ -123,8 +124,8 @@ func (n *Network) PingAll() {
 }
 
 func parseTrans(data []byte) ([]*Transaction, error) {
-	transSize := binary.LittleEndian.Uint32(data[:INT_32_SIZE])
-	offset := INT_32_SIZE
+	transSize := binary.LittleEndian.Uint32(data[:Int32Size])
+	offset := Int32Size
 	txs := make([]*Transaction, 0)
 	for i := 0; i < int(transSize); i++ {
 		tx := new(Transaction)
@@ -133,7 +134,6 @@ func parseTrans(data []byte) ([]*Transaction, error) {
 			offset += txLen
 			txs = append(txs, tx)
 		} else {
-			fmt.Println("incorrect transaction in response from validator")
 			return nil, fmt.Errorf("incorrect transaction in response from validator")
 		}
 	}
@@ -166,20 +166,27 @@ func toRpcResult(respRaw []byte, err error) ([]byte, error) {
 	return resp.Result.MarshalJSON()
 }
 
+// WrappedResponse is used only because response contains unknown filed "response"
+type WrappedResponse struct {
+	Response *abcitypes.ResponseQuery `json:"response"`
+}
+
 func toResponseQuery(result []byte, err error) (*abcitypes.ResponseQuery, error) {
 	if err != nil {
 		return nil, err
 	}
-	var responseQuery abcitypes.ResponseQuery
-	err = responseQuery.UnmarshalJSON(result)
+	var wrappedResponse WrappedResponse
+	//fmt.Println("result", string(result))
+	err = json.Unmarshal(result, &wrappedResponse)
+	//fmt.Println("toResponseQuery", err)
 	if err != nil {
 		return nil, err
 	}
-	return &responseQuery, err
+	return wrappedResponse.Response, err
 }
 
 func (n *Network) abciQueryResponse(path string, data []byte) (*abcitypes.ResponseQuery, error) {
-	fmt.Println("request to path", path, "with binary data", data)
+	//fmt.Println("request to path", path, "with binary data", data)
 	return toResponseQuery(
 		toRpcResult(
 			n.makeGetRequest(
@@ -216,13 +223,13 @@ func (n *Network) BroadcastTxSync(tx []byte) ([]byte, error) {
 	)
 }
 
-func (n *Network) GetTxsByHashes(hashes [][HASH_SIZE]byte) ([]*Transaction, error) {
-	reqData := make([]byte, len(hashes)*HASH_SIZE+INT_32_SIZE)
-	binary.LittleEndian.PutUint32(reqData[:INT_32_SIZE], uint32(len(hashes)))
-	offset := INT_32_SIZE
+func (n *Network) GetTxsByHashes(hashes [][HashSize]byte) ([]*Transaction, error) {
+	reqData := make([]byte, len(hashes)*HashSize+Int32Size)
+	binary.LittleEndian.PutUint32(reqData[:Int32Size], uint32(len(hashes)))
+	offset := Int32Size
 	for _, h := range hashes {
-		copy(reqData[offset:offset+HASH_SIZE], h[:])
-		offset += HASH_SIZE
+		copy(reqData[offset:offset+HashSize], h[:])
+		offset += HashSize
 	}
 	data, err := n.abciQueryValue("getTxs", reqData)
 	if err != nil {
@@ -231,7 +238,7 @@ func (n *Network) GetTxsByHashes(hashes [][HASH_SIZE]byte) ([]*Transaction, erro
 	return parseTrans(data)
 }
 
-func (n *Network) GetTxsByPkey(pkey [PKEY_SIZE]byte) ([]*Transaction, error) {
+func (n *Network) GetTxsByPkey(pkey [PkeySize]byte) ([]*Transaction, error) {
 	data, err := n.abciQueryValue("getTxsByPubKey", pkey[:])
 	if err != nil {
 		return nil, err
@@ -239,23 +246,22 @@ func (n *Network) GetTxsByPkey(pkey [PKEY_SIZE]byte) ([]*Transaction, error) {
 	return parseTrans(data)
 }
 
-func (n *Network) GetUtxosByPkey(pkey [PKEY_SIZE]byte) ([]*UTXO, error) {
-	data, err := n.abciQueryValue("getUTXOByPubKey", pkey[:])
+func (n *Network) GetUtxosByPkey(pkey [PkeySize]byte) ([]*UTXO, error) {
+	data, err := n.abciQueryValue("getUtxosByPubKey", pkey[:])
 	if err != nil {
 		return nil, err
 	}
-	utxosSize := binary.LittleEndian.Uint32(data[:INT_32_SIZE])
-	offset := INT_32_SIZE
+	utxosSize := binary.LittleEndian.Uint32(data[:Int32Size])
+	offset := Int32Size
 	utxos := make([]*UTXO, 0)
 	for i := 0; i < int(utxosSize); i++ {
 		utxo := new(UTXO)
-		retCode := utxo.FromBytes(data[offset : offset+UTXO_SIZE])
+		retCode := utxo.FromBytes(data[offset : offset+UtxoSize])
 		if retCode != OK {
-			fmt.Println("incorrect utxo from validator")
 			return nil, fmt.Errorf("incorrect utxo from validator")
 		}
 		utxos = append(utxos, utxo)
-		offset += UTXO_SIZE
+		offset += UtxoSize
 	}
 	return utxos, nil
 }
@@ -265,10 +271,10 @@ func (n *Network) SubmitTx(tx []byte) error {
 	return err
 }
 
-func (n *Network) Faucet(amount uint32, pkey [PKEY_SIZE]byte) error {
-	data := make([]byte, INT_32_SIZE+PKEY_SIZE)
-	binary.LittleEndian.PutUint32(data[:INT_32_SIZE], amount)
-	copy(data[INT_32_SIZE:], pkey[:])
+func (n *Network) Faucet(amount uint32, pkey [PkeySize]byte) error {
+	data := make([]byte, Int32Size+PkeySize)
+	binary.LittleEndian.PutUint32(data[:Int32Size], amount)
+	copy(data[Int32Size:], pkey[:])
 	resp, err := n.abciQueryResponse("faucet", data)
 	if err != nil {
 		return err
@@ -281,22 +287,22 @@ func (n *Network) Faucet(amount uint32, pkey [PKEY_SIZE]byte) error {
 	}
 }
 
-func (n *Network) VoteResults(hash [HASH_SIZE]byte) (map[[PKEY_SIZE]byte]uint32, error) {
+func (n *Network) VoteResults(hash [HashSize]byte) (map[[PkeySize]byte]uint32, error) {
 	data, err := n.abciQueryValue("getVoteResult", hash[:])
 	if err != nil {
 		return nil, err
 	}
-	itemSize := PKEY_SIZE + INT_32_SIZE
+	itemSize := PkeySize + Int32Size
 	resLen := len(data) / itemSize
 	if len(data)%itemSize != 0 {
 		return nil, errors.New("incorrect result len")
 	}
-	results := make(map[[PKEY_SIZE]byte]uint32)
+	results := make(map[[PkeySize]byte]uint32)
 	for i := 0; i < resLen; i++ {
-		var candidate [PKEY_SIZE]byte
-		copy(candidate[:], data[i*itemSize:i*itemSize+PKEY_SIZE])
+		var candidate [PkeySize]byte
+		copy(candidate[:], data[i*itemSize:i*itemSize+PkeySize])
 		results[candidate] =
-			binary.LittleEndian.Uint32(data[i*itemSize+PKEY_SIZE : i*itemSize+PKEY_SIZE+INT_32_SIZE])
+			binary.LittleEndian.Uint32(data[i*itemSize+PkeySize : i*itemSize+PkeySize+Int32Size])
 	}
 	return results, nil
 }
