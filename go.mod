@@ -1,6 +1,7 @@
 module GO_LOSOVANIE
 
 require (
+	github.com/ethereum/go-ethereum v1.10.3 // indirect
 	github.com/lib/pq v1.10.2
 	github.com/manifoldco/promptui v0.8.0
 	github.com/stretchr/testify v1.7.0
