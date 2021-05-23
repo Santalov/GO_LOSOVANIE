@@ -65,7 +65,7 @@ func (bc *BlockchainApp) setup(
 	bc.appVersion = appVersion
 
 	for _, v := range bc.validators {
-		if bc.thisKey.PubkeyByte == v.Pkey {
+		if bc.thisKey.PkeyByte == v.Pkey {
 			bc.thisValidator = v
 		}
 		bc.pkeyToValidator[v.Pkey] = v
@@ -73,7 +73,7 @@ func (bc *BlockchainApp) setup(
 		bc.tendermintAddrToValidator[v.TendermintAddr] = v
 	}
 	if bc.thisValidator == nil {
-		panic(fmt.Errorf("no validator with pkey %v", bc.thisKey.PubkeyByte))
+		panic(fmt.Errorf("no validator with pkey %v", bc.thisKey.PkeyByte))
 	}
 
 	//load prev from DB

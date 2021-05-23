@@ -6,8 +6,7 @@ import (
 )
 
 func balance(keys *evote.CryptoKeysData, n *evote.Network) {
-	pkey := keys.PubkeyByte
-	priv := keys.PrivateKey
+	pkey := keys.PkeyByte
 	utxos, err := n.GetUtxosByPkey(pkey)
 	if retryQuestion(err, n) {
 		balance(keys, n)
@@ -18,9 +17,8 @@ func balance(keys *evote.CryptoKeysData, n *evote.Network) {
 	}
 	coinsBalance, votesBalance := calcBalance(utxos, evote.ZeroArrayHash)
 	fmt.Printf(
-		"publicKey:     %s\nprivateKey:    %s\ncoins balance: %v\nvotes balance: %v\ntrans num:     %v\n",
+		"publicKey:     %s\ncoins balance: %v\nvotes balance: %v\ntrans num:     %v\n",
 		pkeyHex(pkey),
-		bToHex(priv.Raw()),
 		coinsBalance,
 		votesBalance,
 		len(txs),

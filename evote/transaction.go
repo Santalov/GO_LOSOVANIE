@@ -240,7 +240,7 @@ func (t *Transaction) CreateMiningReward(keys *CryptoKeysData, rewardForBlock [H
 	t.OutputSize = 1
 	var tOut TransactionOutput
 	tOut.Value = RewardCoins
-	tOut.PkeyTo = keys.PubkeyByte
+	tOut.PkeyTo = keys.PkeyByte
 	t.Outputs = append(t.Outputs, tOut)
 	t.TypeValue = ZeroArrayHash
 	t.TypeVote = 0

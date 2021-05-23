@@ -6,7 +6,7 @@ import (
 )
 
 func transactions(keys *evote.CryptoKeysData, n *evote.Network) {
-	pkey := keys.PubkeyByte
+	pkey := keys.PkeyByte
 	txs, err := n.GetTxsByPkey(pkey)
 	if retryQuestion(err, n) {
 		transactions(keys, n)

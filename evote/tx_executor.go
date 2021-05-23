@@ -142,7 +142,10 @@ func (t *TxExecutor) AppendTx(data []byte, ignoreDuplicates bool) (code uint32) 
 func (t *TxExecutor) verifySigAndAppend(
 	data []byte, transSize int, txAndHash TransAndHash, pkey [PkeySize]byte,
 ) (code uint32) {
-	if !VerifyData(data[:transSize-SigSize], txAndHash.Transaction.Signature[:], pkey) {
+	var txWithoutSign Transaction
+	txWithoutSign.FromBytes(data)
+	txWithoutSign.Signature = ZeroArraySig
+	if !VerifyData(txWithoutSign.ToBytes(), txAndHash.Transaction.Signature[:], pkey) {
 		fmt.Println("err: signature doesnt match")
 		return CodeInvalidSignature
 	}

@@ -116,7 +116,7 @@ func createVoting(keys *evote.CryptoKeysData, n *evote.Network) {
 	}
 	var utxos []*evote.UTXO
 	for {
-		utxos, err = n.GetUtxosByPkey(keys.PubkeyByte)
+		utxos, err = n.GetUtxosByPkey(keys.PkeyByte)
 		if !retryQuestion(err, n) {
 			break
 		}

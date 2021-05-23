@@ -31,7 +31,7 @@ func faucet(keys *evote.CryptoKeysData, n *evote.Network) {
 
 	amount64, _ := strconv.ParseInt(amountStr, 10, 64)
 	amount := uint32(amount64)
-	sendFaucet(amount, keys.PubkeyByte, n)
+	sendFaucet(amount, keys.PkeyByte, n)
 }
 
 func sendFaucet(amount uint32, pkey [evote.PkeySize]byte, n *evote.Network) {

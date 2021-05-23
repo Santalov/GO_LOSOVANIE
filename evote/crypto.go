@@ -1,93 +1,60 @@
 package evote
 
 import (
-	"crypto/rand"
+	"crypto/ecdsa"
 	"fmt"
-	"go.cypherpunks.ru/gogost/v5/gost3410"
-	"go.cypherpunks.ru/gogost/v5/gost34112012256"
-	"math/big"
+	"github.com/ethereum/go-ethereum/crypto"
 )
 
-var curve = gost3410.CurveIdGostR34102001CryptoProAParamSet()
-var expCoff = big.NewInt(0).Div(big.NewInt(0).Add(curve.P, big.NewInt(1)), big.NewInt(4))
-
 type CryptoKeysData struct {
-	PrivateKey *gost3410.PrivateKey
-	PublickKey *gost3410.PublicKey
-	PubkeyByte [PkeySize]byte
+	PrivateKey *ecdsa.PrivateKey
+	PublicKey  *ecdsa.PublicKey
+	PkeyByte   [PkeySize]byte
 }
 
 func Hash(data []byte) []byte {
-	var h = gost34112012256.New()
-	h.Write(data)
-	return h.Sum(nil)
+	return crypto.Keccak256(data)
 }
 
 func (keys *CryptoKeysData) SetupKeys(prv []byte) {
-	keys.PrivateKey, _ = gost3410.NewPrivateKey(curve, prv)
-	keys.PublickKey, _ = keys.PrivateKey.PublicKey()
-	var pkeyX = keys.PublickKey.Raw()[:32]
-	var tmp = make([]byte, 1)
-	if big.NewInt(0).Mod(keys.PublickKey.Y, big.NewInt(2)).Uint64() == 0 {
-		tmp[0] = 0x02
-	} else {
-		tmp[0] = 0x03
+	privateKey, err := crypto.ToECDSA(prv)
+	if err != nil {
+		panic(fmt.Errorf("error during coverting bytes to ecdsa key: %v", err))
 	}
-	copy(keys.PubkeyByte[:], append(tmp, pkeyX[:]...))
+	keys.PrivateKey = privateKey
+	keys.PublicKey = &ecdsa.PublicKey{
+		X:     privateKey.X,
+		Y:     privateKey.Y,
+		Curve: privateKey.Curve,
+	}
+	compressedPkey := crypto.CompressPubkey(keys.PublicKey)
+	if len(compressedPkey) != PkeySize {
+		panic(
+			fmt.Errorf(
+				"error during compressing public key, expected exactly %d bytes, but got %v",
+				PkeySize,
+				len(compressedPkey),
+			),
+		)
+	}
+	copy(keys.PkeyByte[:], compressedPkey)
 }
 
+// Sign produced signature is in the [R || S || V] format where V is 0 or 1.
 func (keys *CryptoKeysData) Sign(data []byte) []byte {
-	var res, err = keys.PrivateKey.SignDigest(data, rand.Reader)
+	sig, err := crypto.Sign(Hash(data), keys.PrivateKey)
 	if err != nil {
-		fmt.Println("sign error", err)
+		panic(fmt.Errorf("error during signing: %v", err))
 	}
-	return res
+	return sig
 }
 
-func (keys *CryptoKeysData) AppendSign(data []byte) []byte {
-	res := keys.Sign(append(data, ZeroArraySig[:]...))
-	return append(data, res...)
-}
-
+// VerifyData expects data to be prepared, i.e to be in exact same form, as when passing into Sign function
+// signature is expected to be the same, as produced by Sign function, in the [R || S || V] format,
+// but V byte is not actually used
 func VerifyData(data, signature []byte, pkey [PkeySize]byte) bool {
-	var pkeyX = pkey[1:]
-	for i, j := 0, len(pkeyX)-1; i < j; i, j = i+1, j-1 {
-		pkeyX[i], pkeyX[j] = pkeyX[j], pkeyX[i]
+	if len(signature) != SigSize {
+		panic(fmt.Errorf("signature is expected to be %v bytes long, but got %v", SigSize, len(signature)))
 	}
-	var x = big.NewInt(0).SetBytes(pkeyX)
-	fx := big.NewInt(0)
-	tmp := big.NewInt(0)
-	root := big.NewInt(0)
-	y := big.NewInt(0)
-	fx.Exp(x, big.NewInt(0x03), curve.P)
-	fx.Add(fx, curve.B)
-	tmp.Mul(curve.A, x)
-	fx.Add(fx, tmp)
-	fx.Mod(fx, curve.P)
-	root.Exp(fx, expCoff, curve.P)
-	if pkey[0] == 0x03 {
-		if tmp.Mod(root, big.NewInt(2)).Uint64() == 1 {
-			y = root
-		} else {
-			y = root.Neg(root).Mod(root, curve.P)
-		}
-	} else {
-		if tmp.Mod(root, big.NewInt(2)).Uint64() == 0 {
-			y = root
-		} else {
-			y = root.Neg(root).Mod(root, curve.P)
-		}
-	}
-	var key gost3410.PublicKey
-	key.C = curve
-	key.X = x
-	key.Y = y
-	digest := make([]byte, len(data)+SigSize)
-	copy(digest[:len(data)], data)
-	copy(digest[len(data):], ZeroArraySig[:])
-	res, err := key.VerifyDigest(digest, signature)
-	if err != nil {
-		fmt.Println("verify digest error", err)
-	}
-	return res
+	return crypto.VerifySignature(pkey[:], Hash(data), signature[:SigSize-1])
 }

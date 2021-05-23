@@ -83,7 +83,7 @@ func OnFaucet(db *Database, n *Network, key *CryptoKeysData, data []byte) (code 
 	var pkey [PkeySize]byte
 	var amount = binary.LittleEndian.Uint32(data[:Int32Size])
 	copy(pkey[:], data[Int32Size:])
-	utxos, err := db.GetUTXOSByPkey(key.PubkeyByte)
+	utxos, err := db.GetUTXOSByPkey(key.PkeyByte)
 	if err != nil {
 		return CodeDatabaseFailed, err, nil
 	}

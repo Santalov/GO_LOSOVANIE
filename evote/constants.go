@@ -36,7 +36,7 @@ const (
 //size consts
 const (
 	Int32Size       = 4
-	SigSize         = 64
+	SigSize         = 64 + 1 // one bit for pkey recovery
 	PkeySize        = 33
 	TmPkeySize      = 32 // TM is abbr from tendermint
 	TmAddrSize      = 20

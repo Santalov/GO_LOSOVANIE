@@ -64,7 +64,7 @@ func main() {
 		}
 		var keys evote.CryptoKeysData
 		keys.SetupKeys(golosovaniePrv)
-		vJson.GolosovaniePkey = hex.EncodeToString(keys.PubkeyByte[:])
+		vJson.GolosovaniePkey = hex.EncodeToString(keys.PkeyByte[:])
 		ipAndPortBytes, err := ioutil.ReadFile(path + "/ip_and_port")
 		if err != nil {
 			panic(err)

@@ -63,7 +63,7 @@ func send(keys *evote.CryptoKeysData, n *evote.Network) {
 	outputs := make(map[[evote.PkeySize]byte]uint32)
 	outputs[receiver] = amount
 
-	pkey := keys.PubkeyByte
+	pkey := keys.PkeyByte
 	utxos, err := n.GetUtxosByPkey(pkey)
 	if retryQuestion(err, n) {
 		send(keys, n)

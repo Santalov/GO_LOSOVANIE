@@ -61,7 +61,7 @@ func voteMenu(keys *evote.CryptoKeysData, n *evote.Network, typeValue [evote.Has
 }
 
 func vote(keys *evote.CryptoKeysData, n *evote.Network) {
-	pkey := keys.PubkeyByte
+	pkey := keys.PkeyByte
 	//priv := keys.PrivateKey
 	utxos, err := n.GetUtxosByPkey(pkey)
 	if retryQuestion(err, n) {
