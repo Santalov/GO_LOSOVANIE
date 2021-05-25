@@ -1,3 +1,5 @@
 .idea
 GO_LOSOVANIE
 config
+proto/protoc
+evote/golosovaniepb

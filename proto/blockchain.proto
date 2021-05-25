@@ -1,0 +1,59 @@
+syntax = "proto3";
+package golosovaniepb;
+
+option go_package = "GO_LOSOVANIE/evote/golosovaniepb;golosovaniepb";
+
+// Используется модель входов-выходов
+
+message Input {
+    bytes prev_tx_hash = 1; // хэш транзакции, из которой берется выход
+    fixed32 output_index = 2; // номер выхода в транзакции, из которой он берется
+}
+
+message Output {
+    bytes receiver_spend_pkey = 1; // открытый ключ получателя
+    bytes receiver_scan_pkey = 2; // дополнительный открытй ключ избирателя, использующийся при создании транзакций по схеме DKSAP. Используется только в транзакции создания голосования
+    fixed32 value = 3; // размер перевода
+}
+
+message Transaction {
+    // подписи и само тело транзакции отдельно, чтобы избежать лишних сериализаций и десериализаций
+    bytes tx_body = 1;
+    bytes hash = 2; // хэш транзакции - хэш от tx_body. Поле вычисляемо, но часто используется в коде, поэтому оно есть в структуре
+    bytes sig = 3;
+}
+
+
+message TxBody {
+    repeated Input inputs = 1; // откуда забираются монеты
+    repeated Output outputs = 2; // куда переводятся монеты
+    bytes hash_link = 3; // хэш предыдущей транзакции создания/инициализации голосования или хэш блока в coinbase транзакции
+    bytes value_type = 4; // хэш транзакции создания голосования, если это транзакция отправки голоса, нулевой хэш иначе
+    fixed32 vote_type = 5; // enum на тип голосования
+    bytes sender_ephemeral_pkey = 6; // разовый ключ, создаваемый отправителем по схеме DKSAP
+    bytes voters_sum_pkey = 7; // специальная сумма, используемая для проверки неизменности состава участников голосования
+}
+
+// Unspent transaction output
+message Utxo {
+    bytes tx_hash = 1; // хэш транзакции, из которой взят выход
+    bytes value_type = 2; // value_type из той же транзакции
+    fixed32 index = 3; // номер выхода в массиве выходов
+    fixed32 value = 4;
+    bytes receiver_spend_pkey = 5;
+    bytes receiver_scan_pkey = 6;
+    fixed64 timestamp = 7; // время блока, которому принадлежит транзакция
+}
+
+message BlockHeader {
+    bytes prev_block_hash = 1;
+    bytes merkle_tree = 2; // корень дерева Меркла от всех транзакций в блоке
+    bytes proposer_pkey = 3; // открытый ключ создателя блока. По этому ключу перечисляется вознаграждение за блок. НЕ ключ из консенсуса
+    fixed64 timestamp = 4;
+}
+
+message Block {
+    bytes block_header = 1;
+    repeated bytes tx_body_list = 2; // массив сериализованных транзакций
+    repeated bytes tx_signatures = 3; // массив подписей транзакций, в том же порядке, что и транзакции
+}
