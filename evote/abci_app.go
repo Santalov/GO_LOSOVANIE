@@ -1,8 +1,10 @@
 package evote
 
 import (
+	"GO_LOSOVANIE/evote/golosovaniepb"
 	"encoding/hex"
 	"fmt"
+	"github.com/golang/protobuf/proto"
 	abcitypes "github.com/tendermint/tendermint/abci/types"
 )
 
@@ -23,7 +25,7 @@ type BlockchainApp struct {
 	addrToValidator           map[string]*ValidatorNode
 	pkeyToValidator           map[[PkeySize]byte]*ValidatorNode
 	tendermintAddrToValidator map[[TmAddrSize]byte]*ValidatorNode // map form consensus keys into validators
-	appBlockHash              [HashSize]byte                      // hash of the last committed block
+	appBlockHash              []byte                              // hash of the last committed block
 	appHeight                 int64                               // number of the last committed block
 	checkTxState              *TxExecutor                         // TODO: move transaction execution logic into separate struct
 	deliverTxState            *TxExecutor
@@ -77,7 +79,7 @@ func (bc *BlockchainApp) setup(
 	}
 
 	//load prev from DB
-	bc.appBlockHash = ZeroArrayHash
+	bc.appBlockHash = nil
 
 	bc.appHeight = 0
 
@@ -173,40 +175,44 @@ func BroadcastTxUntilSuccess(nw *Network, tx []byte) {
 }
 
 // function blocks thread
-func (bc *BlockchainApp) broadcastRewardForMe(blockHash [HashSize]byte) {
-	var t Transaction
-	t.CreateMiningReward(bc.thisKey, blockHash)
-	BroadcastTxUntilSuccess(bc.nw.Copy(), t.ToBytes())
+func (bc *BlockchainApp) broadcastRewardForMe(blockHash []byte) {
+	t, err := CreateMiningReward(bc.thisKey, blockHash)
+	if err != nil {
+		panic(err)
+	}
+	txBytes, err := proto.Marshal(t)
+	if err != nil {
+		panic(err)
+	}
+	BroadcastTxUntilSuccess(bc.nw.Copy(), txBytes)
 }
 
 func (bc *BlockchainApp) Commit() abcitypes.ResponseCommit {
 	//fmt.Println("commit")
-	var b Block
-	b.CreateBlock(
+	b, err := CreateBlock(
 		bc.deliverTxState.Transactions,
 		bc.appBlockHash,
 		bc.deliverTxState.Timestamp,
 		bc.deliverTxState.BlockProposer,
 	)
-	var blockAndHash BlocAndkHash
-	blockAndHash.B = &b
-	hash := b.HashBlock(b.ToBytes())
-	copy(blockAndHash.Hash[:], hash)
-	if bc.deliverTxState.BlockProposer == bc.thisValidator.Pkey {
-		// this validator is proposer of the block, reward tx will be added in some of the next blocks
-		go bc.broadcastRewardForMe(blockAndHash.Hash)
-	}
-	err := bc.db.SaveNextBlock(&blockAndHash)
 	if err != nil {
 		panic(err)
 	}
-	bc.appBlockHash = blockAndHash.Hash
+	if bc.deliverTxState.BlockProposer == bc.thisValidator.Pkey {
+		// this validator is proposer of the block, reward tx will be added in some of the next blocks
+		go bc.broadcastRewardForMe(b.Hash)
+	}
+	err = bc.db.SaveNextBlock(b)
+	if err != nil {
+		panic(err)
+	}
+	bc.appBlockHash = b.Hash
 	bc.appHeight++
 	bc.checkTxState.Reset()
 	bc.deliverTxState.Reset()
-	fmt.Println("block committed", hex.EncodeToString(blockAndHash.Hash[:]), "txCount", blockAndHash.B.TransSize)
+	fmt.Println("block committed", hex.EncodeToString(b.Hash), "txCount", len(b.Transactions))
 	return abcitypes.ResponseCommit{
-		Data: bc.appBlockHash[:],
+		Data: bc.appBlockHash,
 	}
 }
 
@@ -226,13 +232,20 @@ func (bc *BlockchainApp) ApplySnapshotChunk(chunk abcitypes.RequestApplySnapshot
 	return abcitypes.ResponseApplySnapshotChunk{}
 }
 
-func respondAbciQuery(code uint32, err error, value []byte) abcitypes.ResponseQuery {
+func respondAbciQuery(code uint32, err error, resp *golosovaniepb.Response) abcitypes.ResponseQuery {
 	if err != nil {
 		return abcitypes.ResponseQuery{
 			Code: code,
 			Log:  err.Error(),
 		}
 	} else {
+		value, err := proto.Marshal(resp)
+		if err != nil {
+			return abcitypes.ResponseQuery{
+				Code: CodeSerializeErr,
+				Log:  "error during final serialization of the response",
+			}
+		}
 		return abcitypes.ResponseQuery{
 			Code:  code,
 			Value: value,
@@ -242,26 +255,35 @@ func respondAbciQuery(code uint32, err error, value []byte) abcitypes.ResponseQu
 
 func (bc *BlockchainApp) Query(reqQuery abcitypes.RequestQuery) abcitypes.ResponseQuery {
 	fmt.Println("query", reqQuery.Path, reqQuery.Data)
+	var req golosovaniepb.Request
+	err := proto.Unmarshal(reqQuery.Data, &req)
+	if err != nil {
+		return respondAbciQuery(
+			CodeParseErr,
+			err,
+			nil,
+		)
+	}
 	switch reqQuery.Path {
 	case "getTxs":
 		return respondAbciQuery(
-			OnGetTxsByHashes(bc.db, reqQuery.Data),
+			OnGetTxsByHashes(bc.db, req.GetTxsByHashes()),
 		)
 	case "getTxsByPubKey":
 		return respondAbciQuery(
-			OnGetTxsByPkey(bc.db, reqQuery.Data),
+			OnGetTxsByPkey(bc.db, req.GetTxsByPkey()),
 		)
 	case "getUtxosByPubKey":
 		return respondAbciQuery(
-			OnGetUtxosByPkey(bc.db, reqQuery.Data),
+			OnGetUtxosByPkey(bc.db, req.GetUtxosByPkey()),
 		)
 	case "faucet":
 		return respondAbciQuery(
-			OnFaucet(bc.db, bc.nw, bc.thisKey, reqQuery.Data),
+			OnFaucet(bc.db, bc.nw, bc.thisKey, req.GetFaucet()),
 		)
 	case "getVoteResult":
 		return respondAbciQuery(
-			OnGetVoteResult(bc.db, reqQuery.Data),
+			OnGetVoteResult(bc.db, req.GetVoteResult()),
 		)
 	}
 

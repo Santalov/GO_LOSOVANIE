@@ -1,61 +1,34 @@
 package evote
 
 import (
-	"encoding/binary"
+	"GO_LOSOVANIE/evote/golosovaniepb"
+	"github.com/golang/protobuf/proto"
 	"time"
 )
 
-type BlocAndkHash struct {
-	B    *Block
-	Hash [HashSize]byte
-}
-
-type Block struct {
-	PrevBlockHash [HashSize]byte
-	MerkleTree    [HashSize]byte
-	proposerPkey  [PkeySize]byte
-	Timestamp     uint64
-	TransSize     uint32
-	Trans         []TransAndHash
-}
-
-func (b *Block) ToBytes() []byte {
-	var data = make([]byte, MinBlockSize)
-	copy(data[:HashSize], b.PrevBlockHash[:])
-	copy(data[HashSize:2*HashSize], b.MerkleTree[:])
-	copy(data[2*HashSize:2*HashSize+PkeySize], b.proposerPkey[:])
-	binary.LittleEndian.PutUint64(data[2*HashSize:2*HashSize+Int32Size*2], b.Timestamp)
-	binary.LittleEndian.PutUint32(data[2*HashSize+Int32Size*2:MinBlockSize], b.TransSize)
-	for _, t := range b.Trans {
-		data = append(data, t.Transaction.ToBytes()...)
-	}
-	return data
-}
-
-func (b *Block) FromBytes(data []byte) int {
-	if len(data) < MinBlockSize {
-		return ErrBlockSize
-	}
-	var offset = HashSize
-	copy(b.PrevBlockHash[:], data[:offset])
-	copy(b.MerkleTree[:], data[offset:offset+HashSize])
-	offset += HashSize
-	copy(b.proposerPkey[:], data[offset:offset+PkeySize])
-	offset += PkeySize
-	b.Timestamp = binary.LittleEndian.Uint64(data[offset : offset+Int32Size*2])
-	offset += Int32Size * 2
-	b.TransSize = binary.LittleEndian.Uint32(data[offset : offset+Int32Size])
-	return OK
-}
-
-func (b *Block) BuildMerkleTree() [HashSize]byte {
-	hashes := make([][]byte, 0)
-	if len(b.Trans) == 0 {
+func BuildMerkleTree(txHashes [][HashSize]byte) [HashSize]byte {
+	hashes := make([][]byte, len(txHashes))
+	if len(txHashes) == 0 {
 		hashes = append(hashes, ZeroArrayHash[:])
 	}
-	for _, t := range b.Trans {
-		hashes = append(hashes, t.Hash[:])
+	for i, h := range txHashes {
+		hashes[i] = h[:]
 	}
+	return buildMerkleTreeMutable(hashes)
+}
+
+func BuildMerkleTreeTxs(txs []*golosovaniepb.Transaction) [HashSize]byte {
+	hashes := make([][]byte, len(txs))
+	if len(txs) == 0 {
+		hashes = append(hashes, ZeroArrayHash[:])
+	}
+	for i, t := range txs {
+		hashes[i] = t.Hash
+	}
+	return buildMerkleTreeMutable(hashes)
+}
+
+func buildMerkleTreeMutable(hashes [][]byte) [HashSize]byte {
 	for {
 		var nextHashes [][]byte
 		var lenHashes = len(hashes)
@@ -76,20 +49,26 @@ func (b *Block) BuildMerkleTree() [HashSize]byte {
 	return hash
 }
 
-func (b *Block) HashBlock(data []byte) []byte {
-	return Hash(data)
-}
-
-func (b *Block) CreateBlock(
-	t []TransAndHash,
-	prevHash [HashSize]byte,
+func CreateBlock(
+	transactions []*golosovaniepb.Transaction,
+	prevHash []byte,
 	timestamp time.Time,
 	proposerPkey [PkeySize]byte,
-) {
-	b.Trans = append(b.Trans, t...)
-	b.PrevBlockHash = prevHash
-	b.MerkleTree = b.BuildMerkleTree()
-	b.TransSize = uint32(len(b.Trans))
-	b.Timestamp = uint64(timestamp.UnixNano())
-	b.proposerPkey = proposerPkey
+) (*golosovaniepb.Block, error) {
+	merkleTree := BuildMerkleTreeTxs(transactions)
+	header := golosovaniepb.BlockHeader{
+		PrevBlockHash: prevHash[:],
+		MerkleTree:    merkleTree[:],
+		ProposerPkey:  proposerPkey[:],
+		Timestamp:     uint64(timestamp.UnixNano()),
+	}
+	headerBytes, err := proto.Marshal(&header)
+	if err != nil {
+		return nil, err
+	}
+	return &golosovaniepb.Block{
+		BlockHeader:  &header,
+		Transactions: transactions,
+		Hash:         Hash(headerBytes),
+	}, nil
 }

@@ -18,7 +18,7 @@ message Output {
 
 message Transaction {
     // подписи и само тело транзакции отдельно, чтобы избежать лишних сериализаций и десериализаций
-    bytes tx_body = 1;
+    bytes tx_body = 1; // тело транзакции сериализовано, чтобы не десериализовывать его при проверке подписей и взятии хэшей
     bytes hash = 2; // хэш транзакции - хэш от tx_body. Поле вычисляемо, но часто используется в коде, поэтому оно есть в структуре
     bytes sig = 3;
 }
@@ -30,8 +30,9 @@ message TxBody {
     bytes hash_link = 3; // хэш предыдущей транзакции создания/инициализации голосования или хэш блока в coinbase транзакции
     bytes value_type = 4; // хэш транзакции создания голосования, если это транзакция отправки голоса, нулевой хэш иначе
     fixed32 vote_type = 5; // enum на тип голосования
-    bytes sender_ephemeral_pkey = 6; // разовый ключ, создаваемый отправителем по схеме DKSAP
-    bytes voters_sum_pkey = 7; // специальная сумма, используемая для проверки неизменности состава участников голосования
+    fixed32 duration = 6; // время голосования в миллисекундах
+    bytes sender_ephemeral_pkey = 7; // разовый ключ, создаваемый отправителем по схеме DKSAP
+    bytes voters_sum_pkey = 8; // специальная сумма, используемая для проверки неизменности состава участников голосования
 }
 
 // Unspent transaction output
@@ -53,7 +54,7 @@ message BlockHeader {
 }
 
 message Block {
-    bytes block_header = 1;
-    repeated bytes tx_body_list = 2; // массив сериализованных транзакций
-    repeated bytes tx_signatures = 3; // массив подписей транзакций, в том же порядке, что и транзакции
+    BlockHeader block_header = 1;
+    repeated Transaction transactions = 2;
+    bytes hash = 3; // хэш заголовка блока
 }

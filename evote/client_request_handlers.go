@@ -1,73 +1,65 @@
 package evote
 
 import (
-	"encoding/binary"
+	"GO_LOSOVANIE/evote/golosovaniepb"
+	"bytes"
 	"fmt"
+	"github.com/golang/protobuf/proto"
 	"time"
 )
 
-func OnGetTxsByHashes(db *Database, data []byte) (code uint32, err error, value []byte) {
-	if len(data) < Int32Size {
-		return CodeInvalidDataLen, fmt.Errorf("too short data"), nil
+func OnGetTxsByHashes(db *Database, req *golosovaniepb.RequestTxsByHashes) (code uint32, err error, resp *golosovaniepb.Response) {
+	if req == nil || len(req.GetHashes()) == 0 {
+		return CodeRequestEmpty, fmt.Errorf("request fields are empty"), nil
 	}
-	hashesNum := binary.LittleEndian.Uint32(data[:Int32Size])
-	if int(hashesNum)*HashSize+Int32Size != len(data) {
-		return CodeInvalidDataLen, fmt.Errorf("data len doesn't match hashes counter"), nil
-	}
-	offset := Int32Size
-	hashes := make([][HashSize]byte, 0)
-	for offset+HashSize <= len(data) {
-		hash := [HashSize]byte{}
-		copy(hash[:], data[offset:offset+HashSize])
-		hashes = append(hashes, hash)
-		offset += HashSize
-	}
-	txs, err := db.GetTxsByHashes(hashes)
+	txs, err := db.GetTxsByHashes(req.GetHashes())
 	if err != nil {
 		return CodeDatabaseFailed, err, nil
 	}
-	txsPacked := make([]byte, Int32Size)
-	binary.LittleEndian.PutUint32(txsPacked, uint32(len(txs)))
-	for _, tx := range txs {
-		txsPacked = append(txsPacked, tx.Transaction.ToBytes()...)
+	txsByHashes := golosovaniepb.ResponseTxsByHashes{
+		Txs: txs,
 	}
-	return CodeOk, nil, txsPacked
+	return CodeOk, nil, &golosovaniepb.Response{
+		Data: &golosovaniepb.Response_TxsByHashes{TxsByHashes: &txsByHashes},
+	}
 }
 
-func OnGetTxsByPkey(db *Database, data []byte) (code uint32, err error, value []byte) {
-	if len(data) != PkeySize {
-		return CodeInvalidDataLen, fmt.Errorf("incorrect pkey length"), nil
+func OnGetTxsByPkey(db *Database, req *golosovaniepb.RequestTxsByPkey) (code uint32, err error, resp *golosovaniepb.Response) {
+	if req == nil || len(req.Pkey) == 0 {
+		return CodeRequestEmpty, fmt.Errorf("request fields are empty"), nil
 	}
-	pkey := [PkeySize]byte{}
-	copy(pkey[:], data)
-	txs, err := db.GetTxsByPubKey(pkey)
+	if len(req.Pkey) != PkeySize {
+		return CodeInvalidDataLen, fmt.Errorf("pkey must be exactly %d bytes", PkeySize), nil
+	}
+	txs, err := db.GetTxsByPubKey(req.Pkey)
 	if err != nil {
 		return CodeDatabaseFailed, err, nil
 	}
-	txsPacked := make([]byte, Int32Size)
-	binary.LittleEndian.PutUint32(txsPacked, uint32(len(txs)))
-	for _, tx := range txs {
-		txsPacked = append(txsPacked, tx.Transaction.ToBytes()...)
+	txsByPkey := golosovaniepb.ResponseTxsByPkey{
+		Txs: txs,
 	}
-	return CodeOk, nil, txsPacked
+	return CodeOk, nil, &golosovaniepb.Response{
+		Data: &golosovaniepb.Response_TxsByPkey{TxsByPkey: &txsByPkey},
+	}
 }
 
-func OnGetUtxosByPkey(db *Database, data []byte) (code uint32, err error, value []byte) {
-	if len(data) != PkeySize {
-		return CodeInvalidDataLen, fmt.Errorf("incorrect pkey length"), nil
+func OnGetUtxosByPkey(db *Database, req *golosovaniepb.RequestUtxosByPkey) (code uint32, err error, resp *golosovaniepb.Response) {
+	if req == nil || len(req.Pkey) == 0 {
+		return CodeRequestEmpty, fmt.Errorf("request fields are empty"), nil
 	}
-	pkey := [PkeySize]byte{}
-	copy(pkey[:], data)
-	utxos, err := db.GetUTXOSByPkey(pkey)
+	if len(req.Pkey) != PkeySize {
+		return CodeInvalidDataLen, fmt.Errorf("pkey must be exactly %d bytes", PkeySize), nil
+	}
+	utxos, err := db.GetUTXOSByPkey(req.Pkey)
 	if err != nil {
 		return CodeDatabaseFailed, err, nil
 	}
-	utxosPacked := make([]byte, Int32Size)
-	binary.LittleEndian.PutUint32(utxosPacked, uint32(len(utxos)))
-	for _, utxo := range utxos {
-		utxosPacked = append(utxosPacked, utxo.ToBytes()...)
+	utxosByPkey := golosovaniepb.ResponseUtxosByPkey{
+		Utxos: utxos,
 	}
-	return CodeOk, nil, utxosPacked
+	return CodeOk, nil, &golosovaniepb.Response{
+		Data: &golosovaniepb.Response_UtxosByPkey{UtxosByPkey: &utxosByPkey},
+	}
 }
 
 /*
@@ -75,58 +67,67 @@ OnFaucet
 input: uint32_t moneyRequest + pkey_bytes_str
 output: ok/false + err_msg
 */
-func OnFaucet(db *Database, n *Network, key *CryptoKeysData, data []byte) (code uint32, err error, value []byte) {
-	if len(data) != Int32Size+PkeySize {
-		return CodeInvalidDataLen, fmt.Errorf("expected data to be int and pkey, but length does not match"), nil
+func OnFaucet(db *Database, n *Network, key *CryptoKeysData, req *golosovaniepb.RequestFaucet) (code uint32, err error, resp *golosovaniepb.Response) {
+	if req == nil || len(req.Pkey) != PkeySize {
+		return CodeInvalidDataLen, fmt.Errorf("pkey must be exactly %d bytes", PkeySize), nil
+	}
+	if req.Value <= 0 {
+		return CodeInvalidValue, fmt.Errorf("value must be greater than zero"), nil
 	}
 
-	var pkey [PkeySize]byte
-	var amount = binary.LittleEndian.Uint32(data[:Int32Size])
-	copy(pkey[:], data[Int32Size:])
-	utxos, err := db.GetUTXOSByPkey(key.PkeyByte)
+	utxos, err := db.GetUTXOSByPkey(key.PkeyByte[:])
 	if err != nil {
 		return CodeDatabaseFailed, err, nil
 	}
-	var t Transaction
 	var outputs = make(map[[PkeySize]byte]uint32, 0)
-	outputs[pkey] = amount
-	errCreate := t.CreateTrans(utxos, outputs, ZeroArrayHash, key, 0, 0, false)
-	if errCreate != OK {
-		return uint32(errCreate), fmt.Errorf("error while creating transaction"), nil
+	outputs[SliceToPkey(req.Pkey)] = req.Value
+	tx, err := CreateTx(utxos, outputs, nil, key, 0, 0, false)
+	if err != nil {
+		return CodeCannotCreateTx, fmt.Errorf("error while creating transaction"), nil
 	}
-	transBytes := t.ToBytes()
+	txBytes, err := proto.Marshal(tx)
+	if err != nil {
+		return CodeSerializeErr, err, nil
+	}
 	go func() {
-		err := n.SubmitTx(transBytes)
+		err := n.SubmitTx(txBytes)
 		if err != nil {
 			fmt.Println("error while submitting faucet tx", err)
 		}
 	}()
 
-	return CodeOk, nil, transBytes
+	return CodeOk, nil, &golosovaniepb.Response{
+		Data: &golosovaniepb.Response_Faucet{
+			Faucet: &golosovaniepb.ResponseFaucet{Tx: tx},
+		},
+	}
 }
 
-func getVoteValue(value, typeVote uint32) int32 {
+func getVoteValue(value, typeVote uint32) uint32 {
 	if typeVote == OneVoteType {
 		return 1
 	}
 	if typeVote == PercentVoteType {
-		return int32(value)
+		return value
 	}
-	return int32(value)
+	return value
 }
 
-func OnGetVoteResult(db *Database, data []byte) (code uint32, err error, value []byte) {
-	if len(data) != HashSize {
+func OnGetVoteResult(db *Database, req *golosovaniepb.RequestVoteResult) (code uint32, err error, resp *golosovaniepb.Response) {
+	if req == nil || len(req.VoteTxHash) != HashSize {
 		return CodeInvalidDataLen, fmt.Errorf("incorrect transaction hash length"), nil
 	}
-	var mainHash [HashSize]byte
-	copy(mainHash[:], data[:])
-	t, timeStart, err := db.GetTxAndTimeByHash(mainHash)
+	t, timeStart, err := db.GetTxAndTimeByHash(req.VoteTxHash)
 	if err != nil {
 		return CodeDatabaseFailed, err, nil
 	}
-	endTime := timeStart + uint64(time.Second)*uint64(t.Transaction.Duration)
-	utxos, err := db.GetUTXOSByTypeValue(mainHash)
+	var body golosovaniepb.TxBody
+	err = proto.Unmarshal(t.TxBody, &body)
+	if err != nil {
+		return CodeParseErr, err, nil
+	}
+	endTime := timeStart + uint64(time.Second)*uint64(body.Duration)
+	utxos, err := db.GetUTXOSByTypeValue(req.VoteTxHash)
 	if err != nil {
 		return CodeDatabaseFailed, err, nil
 	}
@@ -135,23 +136,25 @@ func OnGetVoteResult(db *Database, data []byte) (code uint32, err error, value [
 	//в при некоторых случаях один и тот же избиратель может голосовать дважды,
 	//может голосовать "за", "против", "воздержался" и т.п.
 	//так же может происходит сортировка результатов гослования в зависимости от его типа
-	result := make(map[[PkeySize]byte]int32, 0)
+	result := make(map[[PkeySize]byte]uint32, 0)
 	for _, utxo := range utxos {
-		_, contains := result[utxo.PkeyTo]
-		if utxo.TypeValue == t.Hash && utxo.Timestamp < endTime {
+		pkey := SliceToPkey(utxo.ReceiverSpendPkey)
+		_, contains := result[pkey]
+		if bytes.Equal(utxo.ValueType, t.Hash) && utxo.Timestamp < endTime {
 			if contains {
-				result[utxo.PkeyTo] += getVoteValue(utxo.Value, t.Transaction.TypeVote)
+				result[pkey] += getVoteValue(utxo.Value, body.VoteType)
 			} else {
-				result[utxo.PkeyTo] = getVoteValue(utxo.Value, t.Transaction.TypeVote)
+				result[pkey] = getVoteValue(utxo.Value, body.VoteType)
 			}
 		}
 	}
 
 	for {
-		for _, out := range t.Transaction.Outputs {
-			_, contains := result[out.PkeyTo]
+		for _, out := range body.Outputs {
+			pkey := SliceToPkey(out.ReceiverSpendPkey)
+			_, contains := result[pkey]
 			if contains {
-				delete(result, out.PkeyTo)
+				delete(result, pkey)
 			}
 		}
 		t, err = db.GetTxByHashLink(t.Hash)
@@ -164,16 +167,20 @@ func OnGetVoteResult(db *Database, data []byte) (code uint32, err error, value [
 	}
 
 	//create bytes result
-	var resBytes []byte
-	var valBytes [Int32Size]byte
-	fmt.Println("result voting with mainHash: ", mainHash)
+	fmt.Println("result voting with voteTxHash: ", req.VoteTxHash)
+	var res golosovaniepb.ResponseVoteResult
 	for pkey, val := range result {
 		fmt.Println(pkey, val)
-		binary.LittleEndian.PutUint32(valBytes[:], uint32(val))
-		resBytes = append(resBytes, pkey[:]...)
-		resBytes = append(resBytes, valBytes[:]...)
+		res.Res = append(
+			res.Res,
+			&golosovaniepb.ResponseVoteResult_PkeyValue{
+				Pkey:  pkey[:],
+				Value: val,
+			},
+		)
 	}
-	fmt.Println()
 
-	return CodeOk, nil, resBytes
+	return CodeOk, nil, &golosovaniepb.Response{
+		Data: &golosovaniepb.Response_VoteResult{VoteResult: &res},
+	}
 }

@@ -1,0 +1,74 @@
+syntax = "proto3";
+package golosovaniepb;
+
+option go_package = "GO_LOSOVANIE/evote/golosovaniepb;golosovaniepb";
+
+import "blockchain.proto";
+
+// Описание сообщений для работы с валидатором чере abci_query
+
+message Request {
+    oneof data {
+        RequestTxsByHashes txs_by_hashes = 1;
+        RequestTxsByPkey txs_by_pkey = 2;
+        RequestUtxosByPkey utxos_by_pkey = 3;
+        RequestFaucet faucet = 4;
+        RequestVoteResult vote_result = 5;
+    }
+}
+
+message Response {
+    oneof data {
+        ResponseTxsByHashes txs_by_hashes = 1;
+        ResponseTxsByPkey txs_by_pkey = 2;
+        ResponseUtxosByPkey utxos_by_pkey = 3;
+        ResponseFaucet faucet = 4;
+        ResponseVoteResult vote_result = 5;
+    }
+}
+
+message RequestTxsByHashes {
+    repeated bytes hashes = 1;
+}
+
+message ResponseTxsByHashes {
+    repeated Transaction txs = 1;
+}
+
+message RequestTxsByPkey {
+    bytes pkey = 1;
+}
+
+message ResponseTxsByPkey {
+    repeated Transaction txs = 1;
+}
+
+message RequestUtxosByPkey {
+    bytes pkey = 1;
+}
+
+message ResponseUtxosByPkey {
+    repeated Utxo utxos = 1;
+}
+
+message RequestFaucet {
+    bytes pkey = 1;
+    uint32 value = 2;
+}
+
+message ResponseFaucet {
+    Transaction tx = 1;
+}
+
+message RequestVoteResult {
+    bytes vote_tx_hash = 1;
+}
+
+message ResponseVoteResult {
+    message PkeyValue {
+        bytes pkey = 1;
+        uint32 value = 2;
+    }
+    repeated PkeyValue res = 1;
+}
+

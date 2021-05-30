@@ -1,11 +1,11 @@
 package evote
 
 import (
-	"encoding/binary"
+	"GO_LOSOVANIE/evote/golosovaniepb"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
+	"github.com/golang/protobuf/proto"
 	abcitypes "github.com/tendermint/tendermint/abci/types"
 	rpctypes "github.com/tendermint/tendermint/rpc/jsonrpc/types"
 	"io/ioutil"
@@ -123,23 +123,6 @@ func (n *Network) PingAll() {
 	n.createWorkingHosts()
 }
 
-func parseTrans(data []byte) ([]*Transaction, error) {
-	transSize := binary.LittleEndian.Uint32(data[:Int32Size])
-	offset := Int32Size
-	txs := make([]*Transaction, 0)
-	for i := 0; i < int(transSize); i++ {
-		tx := new(Transaction)
-		txLen := tx.FromBytes(data[offset:])
-		if txLen > 0 {
-			offset += txLen
-			txs = append(txs, tx)
-		} else {
-			return nil, fmt.Errorf("incorrect transaction in response from validator")
-		}
-	}
-	return txs, nil
-}
-
 func toRpcResp(respRaw []byte, err error) (*rpctypes.RPCResponse, error) {
 	if err != nil {
 		return nil, err
@@ -212,6 +195,23 @@ func (n *Network) abciQueryValue(path string, data []byte) ([]byte, error) {
 	return resp.Value, err
 }
 
+func (n *Network) abciQueryValueProto(path string, req *golosovaniepb.Request) (*golosovaniepb.Response, error) {
+	reqBytes, err := proto.Marshal(req)
+	if err != nil {
+		return nil, err
+	}
+	data, err := n.abciQueryValue(path, reqBytes)
+	if err != nil {
+		return nil, err
+	}
+	var resp golosovaniepb.Response
+	err = proto.Unmarshal(data, &resp)
+	if err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
 func (n *Network) BroadcastTxSync(tx []byte) ([]byte, error) {
 	return toRpcResult(
 		n.makeGetRequest(
@@ -223,47 +223,49 @@ func (n *Network) BroadcastTxSync(tx []byte) ([]byte, error) {
 	)
 }
 
-func (n *Network) GetTxsByHashes(hashes [][HashSize]byte) ([]*Transaction, error) {
-	reqData := make([]byte, len(hashes)*HashSize+Int32Size)
-	binary.LittleEndian.PutUint32(reqData[:Int32Size], uint32(len(hashes)))
-	offset := Int32Size
-	for _, h := range hashes {
-		copy(reqData[offset:offset+HashSize], h[:])
-		offset += HashSize
+func (n *Network) GetTxsByHashes(hashes [][]byte) ([]*golosovaniepb.Transaction, error) {
+	req := golosovaniepb.Request{
+		Data: &golosovaniepb.Request_TxsByHashes{
+			TxsByHashes: &golosovaniepb.RequestTxsByHashes{
+				Hashes: hashes,
+			},
+		},
 	}
-	data, err := n.abciQueryValue("getTxs", reqData)
+	resp, err := n.abciQueryValueProto("getTxs", &req)
 	if err != nil {
 		return nil, err
 	}
-	return parseTrans(data)
+	return resp.GetTxsByHashes().GetTxs(), nil
 }
 
-func (n *Network) GetTxsByPkey(pkey [PkeySize]byte) ([]*Transaction, error) {
-	data, err := n.abciQueryValue("getTxsByPubKey", pkey[:])
+func (n *Network) GetTxsByPkey(pkey []byte) ([]*golosovaniepb.Transaction, error) {
+	req := golosovaniepb.Request{
+		Data: &golosovaniepb.Request_TxsByPkey{
+			TxsByPkey: &golosovaniepb.RequestTxsByPkey{
+				Pkey: pkey,
+			},
+		},
+	}
+	resp, err := n.abciQueryValueProto("getTxsByPubKey", &req)
 	if err != nil {
 		return nil, err
 	}
-	return parseTrans(data)
+	return resp.GetTxsByPkey().GetTxs(), nil
 }
 
-func (n *Network) GetUtxosByPkey(pkey [PkeySize]byte) ([]*UTXO, error) {
-	data, err := n.abciQueryValue("getUtxosByPubKey", pkey[:])
+func (n *Network) GetUtxosByPkey(pkey []byte) ([]*golosovaniepb.Utxo, error) {
+	req := golosovaniepb.Request{
+		Data: &golosovaniepb.Request_UtxosByPkey{
+			UtxosByPkey: &golosovaniepb.RequestUtxosByPkey{
+				Pkey: pkey,
+			},
+		},
+	}
+	resp, err := n.abciQueryValueProto("getUtxosByPubKey", &req)
 	if err != nil {
 		return nil, err
 	}
-	utxosSize := binary.LittleEndian.Uint32(data[:Int32Size])
-	offset := Int32Size
-	utxos := make([]*UTXO, 0)
-	for i := 0; i < int(utxosSize); i++ {
-		utxo := new(UTXO)
-		retCode := utxo.FromBytes(data[offset : offset+UtxoSize])
-		if retCode != OK {
-			return nil, fmt.Errorf("incorrect utxo from validator")
-		}
-		utxos = append(utxos, utxo)
-		offset += UtxoSize
-	}
-	return utxos, nil
+	return resp.GetUtxosByPkey().GetUtxos(), nil
 }
 
 func (n *Network) SubmitTx(tx []byte) error {
@@ -271,38 +273,35 @@ func (n *Network) SubmitTx(tx []byte) error {
 	return err
 }
 
-func (n *Network) Faucet(amount uint32, pkey [PkeySize]byte) error {
-	data := make([]byte, Int32Size+PkeySize)
-	binary.LittleEndian.PutUint32(data[:Int32Size], amount)
-	copy(data[Int32Size:], pkey[:])
-	resp, err := n.abciQueryResponse("faucet", data)
-	if err != nil {
-		return err
-	} else {
-		if resp.Code != 0 {
-			return fmt.Errorf("validator answered with code %v, log: %v\n", resp.Code, resp.Log)
-		} else {
-			return nil
-		}
+func (n *Network) Faucet(amount uint32, pkey []byte) error {
+	req := golosovaniepb.Request{
+		Data: &golosovaniepb.Request_Faucet{
+			Faucet: &golosovaniepb.RequestFaucet{
+				Pkey:  pkey,
+				Value: amount,
+			},
+		},
 	}
+	_, err := n.abciQueryValueProto("faucet", &req)
+	return err
 }
 
-func (n *Network) VoteResults(hash [HashSize]byte) (map[[PkeySize]byte]uint32, error) {
-	data, err := n.abciQueryValue("getVoteResult", hash[:])
+func (n *Network) VoteResults(hash []byte) (map[[PkeySize]byte]uint32, error) {
+	req := golosovaniepb.Request{
+		Data: &golosovaniepb.Request_VoteResult{
+			VoteResult: &golosovaniepb.RequestVoteResult{
+				VoteTxHash: hash,
+			},
+		},
+	}
+	resp, err := n.abciQueryValueProto("getVoteResult", &req)
 	if err != nil {
 		return nil, err
 	}
-	itemSize := PkeySize + Int32Size
-	resLen := len(data) / itemSize
-	if len(data)%itemSize != 0 {
-		return nil, errors.New("incorrect result len")
-	}
 	results := make(map[[PkeySize]byte]uint32)
-	for i := 0; i < resLen; i++ {
-		var candidate [PkeySize]byte
-		copy(candidate[:], data[i*itemSize:i*itemSize+PkeySize])
-		results[candidate] =
-			binary.LittleEndian.Uint32(data[i*itemSize+PkeySize : i*itemSize+PkeySize+Int32Size])
+	for _, v := range resp.GetVoteResult().GetRes() {
+		pkey := SliceToPkey(v.Pkey)
+		results[pkey] = v.Value
 	}
 	return results, nil
 }

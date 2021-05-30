@@ -1,46 +1,42 @@
 package evote
 
 import (
+	"GO_LOSOVANIE/evote/golosovaniepb"
 	"crypto/rand"
+	"github.com/golang/protobuf/proto"
 	"time"
 )
 
 type keyPair struct {
-	pub  [PkeySize]byte
+	pub  []byte
 	priv []byte
 }
 
-func randPkey() [PkeySize]byte {
+func randPkey() []byte {
 	res := make([]byte, PkeySize, PkeySize)
 	_, err := rand.Read(res)
 	if err != nil {
 		panic(err)
 	}
-	resres := [PkeySize]byte{}
-	copy(resres[:], res)
-	return resres
+	return res
 }
 
-func randHash() [HashSize]byte {
+func randHash() []byte {
 	res := make([]byte, HashSize, HashSize)
 	_, err := rand.Read(res)
 	if err != nil {
 		panic(err)
 	}
-	resres := [HashSize]byte{}
-	copy(resres[:], res)
-	return resres
+	return res
 }
 
-func randSig() [SigSize]byte {
+func randSig() []byte {
 	res := make([]byte, SigSize, SigSize)
 	_, err := rand.Read(res)
 	if err != nil {
 		panic(err)
 	}
-	resres := [SigSize]byte{}
-	copy(resres[:], res)
-	return resres
+	return res
 }
 
 var keyPairs = []keyPair{
@@ -74,252 +70,219 @@ var keyPairs = []keyPair{
 	},
 }
 
-func makeCoinbaseTx(val uint32, pkeyTo [PkeySize]byte, rewardForBlock [HashSize]byte) *Transaction {
-	return &Transaction{
-		InputSize:  0,
-		Inputs:     nil,
-		OutputSize: 1,
-		Outputs: []TransactionOutput{
+func tx(txBody *golosovaniepb.TxBody) *golosovaniepb.Transaction {
+	bodyBytes, err := proto.Marshal(txBody)
+	if err != nil {
+		panic(err)
+	}
+	return &golosovaniepb.Transaction{
+		TxBody: bodyBytes,
+		Hash:   Hash(bodyBytes),
+		Sig:    randSig(),
+	}
+}
+
+func makeCoinbaseTx(val uint32, pkeyTo []byte, rewardForBlock []byte) *golosovaniepb.Transaction {
+	txBody := golosovaniepb.TxBody{
+		Inputs: nil,
+		Outputs: []*golosovaniepb.Output{
 			{
-				Value:  val,
-				PkeyTo: pkeyTo,
+				Value:             val,
+				ReceiverSpendPkey: pkeyTo[:],
 			},
 		},
-		Duration:  0,
-		HashLink:  rewardForBlock,
-		Signature: randSig(),
-		TypeVote:  0,
-		TypeValue: ZeroArrayHash,
+		HashLink:            rewardForBlock,
+		ValueType:           nil,
+		VoteType:            0,
+		Duration:            0,
+		SenderEphemeralPkey: nil,
+		VotersSumPkey:       nil,
 	}
+	return tx(&txBody)
 }
 
-func txHash(tx *Transaction) [HashSize]byte {
-	res := [HashSize]byte{}
-	copy(res[:], Hash(tx.ToBytes()))
-	return res
-}
-
-func blockHash(block *Block) [HashSize]byte {
-	var res [HashSize]byte
-	copy(res[:], Hash(block.ToBytes()))
-	return res
-}
-
-func appendHashes(txs []*Transaction) []TransAndHash {
-	res := make([]TransAndHash, len(txs))
-	for i, tx := range txs {
-		res[i].Transaction = tx
-		copy(res[i].Hash[:], Hash(tx.ToBytes()))
+func block(
+	transactions []*golosovaniepb.Transaction,
+	prevHash []byte,
+	timestamp time.Time,
+	proposerPkey []byte,
+) *golosovaniepb.Block {
+	var proposer [PkeySize]byte
+	copy(proposer[:], proposerPkey)
+	b, err := CreateBlock(
+		transactions,
+		prevHash,
+		timestamp,
+		proposer,
+	)
+	if err != nil {
+		panic(err)
 	}
-	return res
+	return b
 }
 
 // Z-block, because of coinbase tx update
 // just a regular block, i use letter z to avoid changing enumeration
-var TXS_BLOCKZ = []*Transaction{}
+var TxsBlockZ []*golosovaniepb.Transaction
 
-var BLOCKZ = Block{
-	PrevBlockHash: ZeroArrayHash,
-	MerkleTree:    randHash(),
-	Timestamp:     uint64(time.Now().Add(-10 * time.Second).UnixNano()),
-	TransSize:     uint32(len(TXS_BLOCKZ)),
-	Trans:         appendHashes(TXS_BLOCKZ),
-	proposerPkey:  keyPairs[0].pub,
+var BlockZ = block(
+	TxsBlockZ,
+	nil,
+	time.Now().Add(-10*time.Second),
+	keyPairs[0].pub,
+)
+
+var TxsBlock0 = []*golosovaniepb.Transaction{
+	makeCoinbaseTx(1000, keyPairs[0].pub, BlockZ.Hash),
 }
 
-var TXS_BLOCK0 = []*Transaction{
-	makeCoinbaseTx(1000, keyPairs[0].pub, blockHash(&BLOCKZ)),
-}
+var Block0 = block(
+	TxsBlock0,
+	BlockZ.Hash,
+	time.Now(),
+	keyPairs[0].pub,
+)
 
-var BLOCK0 = Block{
-	PrevBlockHash: blockHash(&BLOCKZ),
-	MerkleTree:    randHash(),
-	Timestamp:     uint64(time.Now().UnixNano()),
-	TransSize:     uint32(len(TXS_BLOCK0)),
-	Trans:         appendHashes(TXS_BLOCK0),
-	proposerPkey:  keyPairs[0].pub,
-}
-
-var TXS_BLOCK1 = []*Transaction{
-	makeCoinbaseTx(2000, keyPairs[0].pub, blockHash(&BLOCK0)),
-	{
-		InputSize: 1,
-		Inputs: []TransactionInput{
+var TxsBlock1 = []*golosovaniepb.Transaction{
+	makeCoinbaseTx(2000, keyPairs[0].pub, Block0.Hash),
+	tx(&golosovaniepb.TxBody{
+		Inputs: []*golosovaniepb.Input{
 			{
-				PrevId:   txHash(TXS_BLOCK0[0]),
-				OutIndex: 0,
+				PrevTxHash:  TxsBlock0[0].Hash,
+				OutputIndex: 0,
 			},
 		},
-		OutputSize: 2,
-		Outputs: []TransactionOutput{
+		Outputs: []*golosovaniepb.Output{
 			{
-				Value:  400,
-				PkeyTo: keyPairs[1].pub,
+				Value:             400,
+				ReceiverSpendPkey: keyPairs[1].pub,
 			},
 			{
-				Value:  600,
-				PkeyTo: keyPairs[0].pub,
-			},
-		},
-		Duration:  0,
-		TypeVote:  0,
-		TypeValue: ZeroArrayHash,
-		Signature: randSig(),
-		HashLink:  ZeroArrayHash,
-	},
-}
-
-var BLOCK1 = Block{
-	PrevBlockHash: blockHash(&BLOCK0),
-	MerkleTree:    randHash(),
-	Timestamp:     uint64(time.Now().Add(10 * time.Second).UnixNano()),
-	TransSize:     uint32(len(TXS_BLOCK1)),
-	Trans:         appendHashes(TXS_BLOCK1),
-	proposerPkey:  keyPairs[1].pub,
-}
-
-var TXS_BLOCK2 = []*Transaction{
-	makeCoinbaseTx(3000, keyPairs[1].pub, blockHash(&BLOCK1)),
-	{
-		InputSize: 2,
-		Inputs: []TransactionInput{
-			{
-				PrevId:   txHash(TXS_BLOCK1[1]),
-				OutIndex: 1,
-			},
-			{
-				PrevId:   txHash(TXS_BLOCK1[0]),
-				OutIndex: 0,
+				Value:             600,
+				ReceiverSpendPkey: keyPairs[0].pub,
 			},
 		},
-		OutputSize: 2,
-		Outputs: []TransactionOutput{
-			{
-				Value:  2400,
-				PkeyTo: keyPairs[2].pub,
-			},
-			{
-				Value:  200,
-				PkeyTo: keyPairs[2].pub,
-			},
-		},
-		Duration:  0,
-		TypeVote:  0,
-		TypeValue: ZeroArrayHash,
-		Signature: randSig(),
-		HashLink:  ZeroArrayHash,
-	},
+		HashLink:            nil,
+		ValueType:           nil,
+		VoteType:            0,
+		Duration:            0,
+		SenderEphemeralPkey: nil,
+		VotersSumPkey:       nil,
+	}),
 }
 
-var BLOCK2 = Block{
-	PrevBlockHash: blockHash(&BLOCK1),
-	MerkleTree:    randHash(),
-	Timestamp:     uint64(time.Now().Add(20 * time.Second).UnixNano()),
-	TransSize:     uint32(len(TXS_BLOCK2)),
-	Trans:         appendHashes(TXS_BLOCK2),
-	proposerPkey:  keyPairs[1].pub,
-}
+var Block1 = block(
+	TxsBlock1,
+	Block0.Hash,
+	time.Now().Add(10*time.Second),
+	keyPairs[1].pub,
+)
 
-var TXS_BLOCK3 = []*Transaction{
-	makeCoinbaseTx(3000, keyPairs[1].pub, blockHash(&BLOCK2)),
-	{ // транза создания голосования
-		InputSize: 1,
-		Inputs: []TransactionInput{
+var TxsBlock2 = []*golosovaniepb.Transaction{
+	makeCoinbaseTx(3000, keyPairs[1].pub, Block1.Hash),
+	tx(&golosovaniepb.TxBody{
+		Inputs: []*golosovaniepb.Input{
 			{
-				PrevId:   txHash(TXS_BLOCK2[0]),
-				OutIndex: 0,
+				PrevTxHash:  TxsBlock1[1].Hash,
+				OutputIndex: 1,
+			},
+			{
+				PrevTxHash:  TxsBlock1[0].Hash,
+				OutputIndex: 0,
 			},
 		},
-		OutputSize: 3,
-		Outputs: []TransactionOutput{
+		Outputs: []*golosovaniepb.Output{
 			{
-				Value:  2000,
-				PkeyTo: keyPairs[3].pub,
+				Value:             2400,
+				ReceiverSpendPkey: keyPairs[2].pub,
 			},
 			{
-				Value:  3000,
-				PkeyTo: keyPairs[4].pub,
-			},
-			{
-				Value:  4000,
-				PkeyTo: keyPairs[5].pub,
+				Value:             200,
+				ReceiverSpendPkey: keyPairs[2].pub,
 			},
 		},
-		Duration:  100,
-		TypeVote:  1, // у транзы создания голосования ненулевой id
-		TypeValue: ZeroArrayHash,
-		HashLink:  ZeroArrayHash,
-	},
+		HashLink:            nil,
+		ValueType:           nil,
+		VoteType:            0,
+		Duration:            0,
+		SenderEphemeralPkey: nil,
+		VotersSumPkey:       nil,
+	}),
 }
 
-var BLOCK3 = Block{
-	PrevBlockHash: blockHash(&BLOCK2),
-	MerkleTree:    randHash(),
-	Timestamp:     uint64(time.Now().Add(30 * time.Second).UnixNano()),
-	TransSize:     uint32(len(TXS_BLOCK3)),
-	Trans:         appendHashes(TXS_BLOCK3),
-	proposerPkey:  keyPairs[6].pub,
-}
+var Block2 = block(
+	TxsBlock2,
+	Block1.Hash,
+	time.Now().Add(20*time.Second),
+	keyPairs[1].pub,
+)
 
-var TXS_BLOCK4 = []*Transaction{
-	makeCoinbaseTx(3000, keyPairs[6].pub, blockHash(&BLOCK3)),
-	{ // траза голосвания
-		InputSize: 1,
-		Inputs: []TransactionInput{
+var TxsBlock3 = []*golosovaniepb.Transaction{
+	makeCoinbaseTx(3000, keyPairs[1].pub, Block2.Hash),
+	tx(&golosovaniepb.TxBody{ // транза создания голосования
+		Inputs: []*golosovaniepb.Input{
 			{
-				PrevId:   txHash(TXS_BLOCK3[1]),
-				OutIndex: 0,
+				PrevTxHash:  TxsBlock2[0].Hash,
+				OutputIndex: 0,
 			},
 		},
-		OutputSize: 1,
-		Outputs: []TransactionOutput{
+		Outputs: []*golosovaniepb.Output{
 			{
-				Value:  2000,
-				PkeyTo: keyPairs[6].pub,
+				Value:             2000,
+				ReceiverSpendPkey: keyPairs[3].pub,
+			},
+			{
+				Value:             3000,
+				ReceiverSpendPkey: keyPairs[4].pub,
+			},
+			{
+				Value:             4000,
+				ReceiverSpendPkey: keyPairs[5].pub,
 			},
 		},
-		Duration:  0,
-		TypeVote:  0,
-		TypeValue: txHash(TXS_BLOCK3[1]),
-		HashLink:  ZeroArrayHash,
-	},
+		HashLink:            nil,
+		ValueType:           nil,
+		VoteType:            1, // у транзаы создания голосования ненулевой voteType
+		Duration:            100,
+		SenderEphemeralPkey: nil,
+		VotersSumPkey:       nil,
+	}),
 }
 
-var BLOCK4 = Block{
-	PrevBlockHash: blockHash(&BLOCK3),
-	MerkleTree:    randHash(),
-	Timestamp:     uint64(time.Now().Add(30 * time.Second).UnixNano()),
-	TransSize:     uint32(len(TXS_BLOCK4)),
-	Trans:         appendHashes(TXS_BLOCK4),
-	proposerPkey:  keyPairs[6].pub,
+var Block3 = block(
+	TxsBlock3,
+	Block2.Hash,
+	time.Now().Add(30*time.Second),
+	keyPairs[6].pub,
+)
+
+var TxsBlock4 = []*golosovaniepb.Transaction{
+	makeCoinbaseTx(3000, keyPairs[6].pub, Block3.Hash),
+	tx(&golosovaniepb.TxBody{ // транзакция отправки голоса
+		Inputs: []*golosovaniepb.Input{
+			{
+				PrevTxHash:  TxsBlock3[1].Hash,
+				OutputIndex: 0,
+			},
+		},
+		Outputs: []*golosovaniepb.Output{
+			{
+				Value:             2000,
+				ReceiverSpendPkey: keyPairs[6].pub,
+			},
+		},
+		HashLink:            nil,
+		ValueType:           TxsBlock3[1].Hash,
+		VoteType:            0,
+		Duration:            0,
+		SenderEphemeralPkey: nil,
+		VotersSumPkey:       nil,
+	}),
 }
 
-var B_AND_HZ = BlocAndkHash{
-	B:    &BLOCKZ,
-	Hash: blockHash(&BLOCKZ),
-}
-
-var B_AND_H0 = BlocAndkHash{
-	B:    &BLOCK0,
-	Hash: blockHash(&BLOCK0),
-}
-
-var B_AND_H1 = BlocAndkHash{
-	B:    &BLOCK1,
-	Hash: blockHash(&BLOCK1),
-}
-
-var B_AND_H2 = BlocAndkHash{
-	B:    &BLOCK2,
-	Hash: blockHash(&BLOCK2),
-}
-
-var B_AND_H3 = BlocAndkHash{
-	B:    &BLOCK3,
-	Hash: blockHash(&BLOCK3),
-}
-
-var B_AND_H4 = BlocAndkHash{
-	B:    &BLOCK4,
-	Hash: blockHash(&BLOCK4),
-}
+var Block4 = block(
+	TxsBlock4,
+	Block3.Hash,
+	time.Now().Add(30*time.Second),
+	keyPairs[6].pub,
+)

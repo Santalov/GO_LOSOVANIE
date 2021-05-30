@@ -52,9 +52,9 @@ func (keys *CryptoKeysData) Sign(data []byte) []byte {
 // VerifyData expects data to be prepared, i.e to be in exact same form, as when passing into Sign function
 // signature is expected to be the same, as produced by Sign function, in the [R || S || V] format,
 // but V byte is not actually used
-func VerifyData(data, signature []byte, pkey [PkeySize]byte) bool {
+func VerifyData(data, signature []byte, pkey []byte) bool {
 	if len(signature) != SigSize {
 		panic(fmt.Errorf("signature is expected to be %v bytes long, but got %v", SigSize, len(signature)))
 	}
-	return crypto.VerifySignature(pkey[:], Hash(data), signature[:SigSize-1])
+	return crypto.VerifySignature(pkey, Hash(data), signature[:SigSize-1])
 }

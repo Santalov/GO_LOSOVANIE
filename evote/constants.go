@@ -16,12 +16,15 @@ const (
 const (
 	CodeOk uint32 = iota
 	CodeParseErr
+	CodeSerializeErr
+	CodeRequestEmpty
 	CodeNoOutputs
 	CodeHashLinkAndTypeVoteTogether
 	CodeDoubleSpending
 	CodeMixingTypeValue
 	CodeInputsNotMatchOutputs
 	CodeInvalidSignature
+	CodeInvalidSignatureLen
 	CodeCoinbaseTxNoOutput
 	CodeCoinbaseNoBlock
 	CodeCoinbaseProposerMismatch
@@ -31,6 +34,26 @@ const (
 	CodeDatabaseFailed
 	CodeBroadcastTxFailed
 	CodeUnknownPath
+	CodeInvalidValue
+	CodeCannotCreateTx
+	CodeHashesDontMatch
+	CodeTxTooLarge
+	CodeHashLinkInvalidLen
+	CodeUnexpectedScanKey
+	CodeCoinbaseUnexpectedDuration
+	CodeCoinbaseUnexpectedSenderEphemeralPkey
+	CodeCoinbaseUnexpectedVotersSumPkey
+	CodeInputNotOwn
+	CodeOutputsHaveBothNilAndNotNilScanKeys
+	CodeCreateVoteTxUnexpectedSenderEphemeralPkey
+	CodeCreateVoteTxUnexpectedVotersSumPkey
+	CodeVotesUsedAsFunding
+	CodeInvalidSenderEphemeralPkeyLen
+	CodeInvalidVotersSumPkeyLen
+	CodeInitVoteMustHaveNilScanPkeys
+	CodeNotSupported
+	CodeValueTypeInvalid
+	CodeInvalidVoteParticipantNumber
 )
 
 //size consts
@@ -45,7 +68,7 @@ const (
 	TransInputSize  = HashSize + Int32Size
 	MinTransSize    = Int32Size*4 + TransOutputSize + SigSize + HashSize*2
 	MinBlockSize    = HashSize*2 + PkeySize + Int32Size*3
-	MaxBlockSize    = 1 * 1024 * 1024
+	MaxTxSize       = 512 * 1024 // 0.5 mb
 	RewardCoins     = 1000
 	UtxoSize        = HashSize*2 + 4*Int32Size + PkeySize
 )
