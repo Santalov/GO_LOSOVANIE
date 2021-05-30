@@ -2,6 +2,8 @@ package main
 
 import (
 	"GO_LOSOVANIE/evote"
+	"GO_LOSOVANIE/evote/golosovaniepb"
+	"bytes"
 	"encoding/hex"
 	"fmt"
 	"github.com/manifoldco/promptui"
@@ -32,10 +34,10 @@ func retryQuestion(err error, n *evote.Network) bool {
 	}
 }
 
-func calcBalance(utxos []*evote.UTXO, typeValue [evote.HashSize]byte) (balanceOfTypeValue, otherBalance uint32) {
+func calcBalance(utxos []*golosovaniepb.Utxo, valueType []byte) (balanceOfValueType, otherBalance uint32) {
 	for _, utxo := range utxos {
-		if utxo.TypeValue == typeValue {
-			balanceOfTypeValue += utxo.Value
+		if bytes.Equal(utxo.ValueType, valueType) {
+			balanceOfValueType += utxo.Value
 		} else {
 			otherBalance += utxo.Value
 		}

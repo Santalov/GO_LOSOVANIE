@@ -2,6 +2,7 @@ package main
 
 import (
 	"GO_LOSOVANIE/evote"
+	"GO_LOSOVANIE/evote/golosovaniepb"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -114,22 +115,17 @@ func createVoting(keys *evote.CryptoKeysData, n *evote.Network) {
 		copy(pkey[:], pkeySlice)
 		outputs[pkey] = amountPerParticipant
 	}
-	var utxos []*evote.UTXO
+	var utxos []*golosovaniepb.Utxo
 	for {
-		utxos, err = n.GetUtxosByPkey(keys.PkeyByte)
+		utxos, err = n.GetUtxosByPkey(keys.PkeyByte[:])
 		if !retryQuestion(err, n) {
 			break
 		}
 	}
-	var tx evote.Transaction
-	retCode := tx.CreateTrans(utxos, outputs, evote.ZeroArrayHash, keys, typeVote, duration, false)
-	if retCode == evote.ErrCreateTrans {
-		fmt.Println("insufficient balance")
+	tx, err := evote.CreateTx(utxos, outputs, nil, keys, typeVote, duration, false)
+	if err != nil {
+		fmt.Println(err)
 		return
 	}
-	if retCode == evote.OK {
-		sendTx(&tx, n)
-	} else {
-		panic("unknown err")
-	}
+	sendTx(tx, n)
 }

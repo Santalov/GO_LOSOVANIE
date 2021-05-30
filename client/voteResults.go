@@ -6,7 +6,7 @@ import (
 )
 
 func voteResults(keys *evote.CryptoKeysData, n *evote.Network, typeValue [evote.HashSize]byte) {
-	results, err := n.VoteResults(typeValue)
+	results, err := n.VoteResults(typeValue[:])
 	if retryQuestion(err, n) {
 		voteResults(keys, n, typeValue)
 	}

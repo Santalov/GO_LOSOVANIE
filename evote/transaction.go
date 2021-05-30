@@ -25,9 +25,10 @@ func CreateTx(
 	var maxValInputs uint32 = 0
 	var maxValOutputs uint32 = 0
 	for pkey, val := range outputs {
+		p := pkey
 		t.Outputs = append(t.Outputs,
 			&golosovaniepb.Output{
-				ReceiverSpendPkey: pkey[:],
+				ReceiverSpendPkey: p[:],
 				ReceiverScanPkey:  nil,
 				Value:             val,
 			})

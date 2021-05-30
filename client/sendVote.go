@@ -64,19 +64,14 @@ func sendVote(keys *evote.CryptoKeysData, n *evote.Network, typeValue [evote.Has
 	outputs[receiver] = amount
 
 	pkey := keys.PkeyByte
-	utxos, err := n.GetUtxosByPkey(pkey)
+	utxos, err := n.GetUtxosByPkey(pkey[:])
 	if retryQuestion(err, n) {
 		send(keys, n)
 	}
-	var tx evote.Transaction
-	retCode := tx.CreateTrans(utxos, outputs, typeValue, keys, 0, 0, false)
-	if retCode == evote.ErrCreateTrans {
-		fmt.Println("insufficient balance")
+	tx, err := evote.CreateTx(utxos, outputs, typeValue[:], keys, 0, 0, false)
+	if err != nil {
+		fmt.Println(err)
 		return
 	}
-	if retCode == evote.OK {
-		sendTx(&tx, n)
-	} else {
-		panic("unknown err")
-	}
+	sendTx(tx, n)
 }

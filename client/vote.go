@@ -2,9 +2,11 @@ package main
 
 import (
 	"GO_LOSOVANIE/evote"
+	"GO_LOSOVANIE/evote/golosovaniepb"
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/golang/protobuf/proto"
 	"github.com/manifoldco/promptui"
 )
 
@@ -63,11 +65,11 @@ func voteMenu(keys *evote.CryptoKeysData, n *evote.Network, typeValue [evote.Has
 func vote(keys *evote.CryptoKeysData, n *evote.Network) {
 	pkey := keys.PkeyByte
 	//priv := keys.PrivateKey
-	utxos, err := n.GetUtxosByPkey(pkey)
+	utxos, err := n.GetUtxosByPkey(pkey[:])
 	if retryQuestion(err, n) {
 		vote(keys, n)
 	}
-	txs, err := n.GetTxsByPkey(pkey)
+	txs, err := n.GetTxsByPkey(pkey[:])
 	if retryQuestion(err, n) {
 		vote(keys, n)
 	}
@@ -75,19 +77,23 @@ func vote(keys *evote.CryptoKeysData, n *evote.Network) {
 	votings := make(map[[evote.HashSize]byte]uint32)
 
 	for _, tx := range txs {
-		if tx.TypeValue != evote.ZeroArrayHash {
-			votings[tx.TypeValue] = 0
+		var body golosovaniepb.TxBody
+		err := proto.Unmarshal(tx.TxBody, &body)
+		if err != nil {
+			fmt.Println("error during parsing tx", tx.Hash, tx.TxBody)
+			return
 		}
-		if tx.TypeVote != 0 {
-			var typeValue [evote.HashSize]byte
-			copy(typeValue[:], evote.Hash(tx.ToBytes()))
-			votings[typeValue] = 0
+		if len(body.ValueType) != 0 {
+			votings[evote.SliceToHash(body.ValueType)] = 0
+		}
+		if body.VoteType != 0 {
+			votings[evote.SliceToHash(tx.Hash)] = 0
 		}
 	}
 
 	for _, utxo := range utxos {
-		if utxo.TypeValue != evote.ZeroArrayHash {
-			votings[utxo.TypeValue] += utxo.Value
+		if len(utxo.ValueType) != 0 {
+			votings[evote.SliceToHash(utxo.ValueType)] += utxo.Value
 		}
 	}
 

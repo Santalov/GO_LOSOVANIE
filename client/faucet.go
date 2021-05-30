@@ -35,7 +35,7 @@ func faucet(keys *evote.CryptoKeysData, n *evote.Network) {
 }
 
 func sendFaucet(amount uint32, pkey [evote.PkeySize]byte, n *evote.Network) {
-	err := n.Faucet(amount, pkey)
+	err := n.Faucet(amount, pkey[:])
 	if retryQuestion(err, n) {
 		sendFaucet(amount, pkey, n)
 	}

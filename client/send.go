@@ -2,9 +2,11 @@ package main
 
 import (
 	"GO_LOSOVANIE/evote"
+	"GO_LOSOVANIE/evote/golosovaniepb"
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/golang/protobuf/proto"
 	"github.com/manifoldco/promptui"
 	"strconv"
 )
@@ -64,25 +66,24 @@ func send(keys *evote.CryptoKeysData, n *evote.Network) {
 	outputs[receiver] = amount
 
 	pkey := keys.PkeyByte
-	utxos, err := n.GetUtxosByPkey(pkey)
+	utxos, err := n.GetUtxosByPkey(pkey[:])
 	if retryQuestion(err, n) {
 		send(keys, n)
 	}
-	var tx evote.Transaction
-	retCode := tx.CreateTrans(utxos, outputs, evote.ZeroArrayHash, keys, 0, 0, false)
-	if retCode == evote.ErrCreateTrans {
-		fmt.Println("insufficient balance")
+	tx, err := evote.CreateTx(utxos, outputs, nil, keys, 0, 0, false)
+	if err != nil {
+		fmt.Println(err)
 		return
 	}
-	if retCode == evote.OK {
-		sendTx(&tx, n)
-	} else {
-		panic("unknown err")
-	}
+	sendTx(tx, n)
 }
 
-func sendTx(tx *evote.Transaction, n *evote.Network) {
-	err := n.SubmitTx(tx.ToBytes())
+func sendTx(tx *golosovaniepb.Transaction, n *evote.Network) {
+	txBytes, err := proto.Marshal(tx)
+	if err != nil {
+		panic(err)
+	}
+	err = n.SubmitTx(txBytes)
 	if retryQuestion(err, n) {
 		sendTx(tx, n)
 	}
