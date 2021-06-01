@@ -3,3 +3,4 @@ GO_LOSOVANIE
 config
 proto/protoc
 */golosovaniepb
+*/node_modules
