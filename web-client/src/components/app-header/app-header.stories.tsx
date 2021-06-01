@@ -6,4 +6,4 @@ export default {
   title: "AppHeader",
 };
 
-export const Default = () => <AppHeader>Authentication</AppHeader>;
+export const Default = () => <AppHeader></AppHeader>;
