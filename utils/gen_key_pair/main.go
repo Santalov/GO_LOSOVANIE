@@ -1,33 +1,43 @@
 package main
 
 import (
-	"crypto/rand"
+	"crypto/ecdsa"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"go.cypherpunks.ru/gogost/v5/gost3410"
-	"math/big"
+	"github.com/ethereum/go-ethereum/crypto"
 )
 
-var curve = gost3410.CurveIdGostR34102001CryptoProAParamSet()
+const PkeySize = 33
 
 type CryptoKeysData struct {
-	privateKey *gost3410.PrivateKey
-	publickKey *gost3410.PublicKey
-	pubKeyByte [33]byte
+	PrivateKey *ecdsa.PrivateKey
+	PublicKey  *ecdsa.PublicKey
+	PkeyByte   [PkeySize]byte
 }
 
 func (keys *CryptoKeysData) SetupKeys(prv []byte) {
-	keys.privateKey, _ = gost3410.NewPrivateKey(curve, prv)
-	keys.publickKey, _ = keys.privateKey.PublicKey()
-	var pkeyX = keys.publickKey.Raw()[:32]
-	var tmp = make([]byte, 1)
-	if big.NewInt(0).Mod(keys.publickKey.Y, big.NewInt(2)).Uint64() == 0 {
-		tmp[0] = 0x02
-	} else {
-		tmp[0] = 0x03
+	privateKey, err := crypto.ToECDSA(prv)
+	if err != nil {
+		panic(fmt.Errorf("error during coverting bytes to ecdsa key: %v", err))
 	}
-	copy(keys.pubKeyByte[:], append(tmp, pkeyX[:]...))
+	keys.PrivateKey = privateKey
+	keys.PublicKey = &ecdsa.PublicKey{
+		X:     privateKey.X,
+		Y:     privateKey.Y,
+		Curve: privateKey.Curve,
+	}
+	compressedPkey := crypto.CompressPubkey(keys.PublicKey)
+	if len(compressedPkey) != PkeySize {
+		panic(
+			fmt.Errorf(
+				"error during compressing public key, expected exactly %d bytes, but got %v",
+				PkeySize,
+				len(compressedPkey),
+			),
+		)
+	}
+	copy(keys.PkeyByte[:], compressedPkey)
 }
 
 type PrivateKeyJson struct {
@@ -36,12 +46,12 @@ type PrivateKeyJson struct {
 }
 
 func main() {
-	prv, _ := gost3410.GenPrivateKey(gost3410.CurveIdGostR34102001CryptoProAParamSet(), rand.Reader)
+	prv, _ := crypto.GenerateKey()
 	var keys CryptoKeysData
-	keys.SetupKeys(prv.Raw())
+	keys.SetupKeys(crypto.FromECDSA(prv))
 	keyPair := PrivateKeyJson{
-		Pkey: hex.EncodeToString(keys.pubKeyByte[:]),
-		Prv:  hex.EncodeToString(keys.privateKey.Raw()),
+		Pkey: hex.EncodeToString(keys.PkeyByte[:]),
+		Prv:  hex.EncodeToString(crypto.FromECDSA(keys.PrivateKey)),
 	}
 	data, err := json.Marshal(keyPair)
 	if err != nil {
