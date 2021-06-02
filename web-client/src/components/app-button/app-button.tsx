@@ -1,14 +1,15 @@
-import React from "react";
+import React, {PropsWithChildren} from "react";
 import ButtonBase from "@material-ui/core/ButtonBase";
-import { makeStyles } from "@material-ui/core/styles";
-import withTheme from "@material-ui/core/styles/withTheme";
+import {createStyles, makeStyles, Theme} from "@material-ui/core/styles";
+import {ButtonProps} from '@material-ui/core';
+import classNames from 'classnames';
 
-function AppButtonRaw(props) {
-  const classes = makeStyles({
+const useStyles = makeStyles((theme: Theme) =>
+  createStyles({
     root: {
       position: "relative",
       border: "2px solid",
-      borderColor: props.theme.palette.primary.main,
+      borderColor: theme.palette.primary.main,
       borderRadius: 6,
       flexShrink: 0,
       height: 40,
@@ -18,27 +19,37 @@ function AppButtonRaw(props) {
       paddingTop: 0,
       paddingBottom: 0,
       fontSize: "1rem",
-      color: props.theme.palette.primary.main,
+      color: theme.palette.primary.main,
     },
     disabled: {
-      borderColor: props.theme.palette.text.disabled,
-      color: props.theme.palette.text.secondary,
+      borderColor: theme.palette.text.disabled,
+      color: theme.palette.text.secondary,
     },
-  })();
+  })
+);
+
+function AppButton(
+  {
+    children,
+    className,
+    disabled,
+    ...props
+  }: PropsWithChildren<{
+    className?: string,
+    disabled?: boolean
+  }> & ButtonProps
+) {
+  const classes = useStyles();
   return (
     <ButtonBase
       {...props}
       className={
-        classes.root +
-        (props.disabled ? " " + classes.disabled : "") +
-        (props.className ? " " + props.className : "")
+        classNames(classes.root, {[classes.disabled]: disabled}, className)
       }
     >
-      {props.children}
+      {children}
     </ButtonBase>
   );
 }
-
-const AppButton = withTheme(AppButtonRaw);
 
 export default AppButton;

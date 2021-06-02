@@ -7,7 +7,7 @@ import themeService from '../services/theme.service';
 class AppThemeProvider extends React.Component {
   state: { isDark: boolean };
 
-  constructor(props) {
+  constructor(props: {}) {
     super(props);
     this.state = {
       isDark: themeService.isDarkTheme,

@@ -1,22 +1,23 @@
-import React from "react";
-import withStyles from "@material-ui/core/styles/withStyles";
+import React, {PropsWithChildren} from "react";
+import {createStyles, makeStyles, Theme} from '@material-ui/core';
 
-const styles = (theme) => ({
-  container: {
-    display: "flex",
-    justifyContent: "flex-end",
-    alignItems: "stretch",
-  },
-});
+const useStyles = makeStyles((theme: Theme) =>
+  createStyles({
+    container: {
+      display: "flex",
+      justifyContent: "flex-end",
+      alignItems: "stretch",
+    },
+  })
+);
 
-function AppButtonContainerRaw({ classes, children, ...props }) {
+function AppButtonContainer({children, ...props}: PropsWithChildren<{}>) {
+  const classes = useStyles();
   return (
     <div className={classes.container} {...props}>
       {children}
     </div>
   );
 }
-
-const AppButtonContainer = withStyles(styles)(AppButtonContainerRaw);
 
 export default AppButtonContainer;

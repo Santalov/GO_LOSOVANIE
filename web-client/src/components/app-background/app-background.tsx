@@ -1,19 +1,21 @@
-import React from "react";
+import React, {PropsWithChildren} from "react";
 import makeStyles from "@material-ui/core/styles/makeStyles";
-import { withTheme } from "@material-ui/core";
+import {createStyles, Theme} from "@material-ui/core";
 
-function AppBackgroundRaw({ theme, children }) {
-  const appClass = makeStyles({
+const useStyles = makeStyles((theme: Theme) =>
+  createStyles({
     root: {
       backgroundColor: theme.palette.background.default,
       color: theme.palette.text.primary,
       height: "100%",
       overflow: "auto",
     },
-  })().root;
-  return <div className={appClass}>{children}</div>;
-}
+  })
+);
 
-const AppBackground = withTheme(AppBackgroundRaw);
+function AppBackground({children}: PropsWithChildren<{}>) {
+  const classes = useStyles();
+  return <div className={classes.root}>{children}</div>;
+}
 
 export default AppBackground;

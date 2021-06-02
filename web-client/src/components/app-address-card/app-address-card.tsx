@@ -2,13 +2,18 @@ import {createStyles, makeStyles, Theme} from '@material-ui/core/styles';
 import AppCard from '../app-card/app-card';
 import classNames from 'classnames';
 import {IconButton, Typography} from '@material-ui/core';
-import {ArrowDownward, ArrowUpward, History, HowToVote} from '@material-ui/icons';
+import {ArrowDownward, ArrowUpward, FileCopy, History, HowToVote} from '@material-ui/icons';
+import {SyntheticEvent} from 'react';
 
 const useStyles = makeStyles((theme: Theme) =>
   createStyles({
     root: {
       borderLeft: '2px solid',
-      borderLeftColor: 'transparent'
+      borderLeftColor: 'transparent',
+      '&:hover': {
+        backgroundColor: 'rgba(0, 0, 0, 0.1)',
+        cursor: 'pointer',
+      }
     },
     rootActive: {
       borderLeftColor: theme.palette.primary.main
@@ -44,6 +49,9 @@ const useStyles = makeStyles((theme: Theme) =>
     },
     address: {
       color: theme.palette.text.secondary,
+      width: '100%',
+      display: 'grid',
+      gridTemplateColumns: 'minmax(0, 1fr) auto',
     },
     values: {
       display: 'flex',
@@ -80,6 +88,17 @@ function AppAddressCard(
   {name, address, coins, votes, active}: AppAddressCardProps
 ) {
   const classes = useStyles();
+  const copyAddress = (e: SyntheticEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    navigator
+      .clipboard
+      .writeText(address)
+      .then(() => {
+          console.log('copied', address)
+        }
+      );
+  };
   return (
     <AppCard className={classNames(classes.root, {[classes.rootActive]: active})}>
       <div className={classes.header}>
@@ -90,12 +109,22 @@ function AppAddressCard(
           >
             {name}
           </Typography>
-          <Typography
-            variant="subtitle1"
-            className={classNames(classes.headlineItem, classes.address)}
-          >
-            {address}
-          </Typography>
+          <div className={classes.address}>
+            <Typography
+              variant="subtitle1"
+              className={classes.headlineItem}
+            >
+              {address}
+            </Typography>
+            <IconButton
+              aria-label="delete"
+              size="small"
+              className="clipboard-button"
+              onClick={copyAddress}
+            >
+              <FileCopy fontSize="inherit"/>
+            </IconButton>
+          </div>
         </div>
         <Typography
           className={classNames(classes.values, classes.coins)}

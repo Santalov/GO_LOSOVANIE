@@ -1,26 +1,27 @@
-import React from "react";
-import { withStyles } from "@material-ui/core";
+import React, {PropsWithChildren} from "react";
+import {createStyles, makeStyles, Theme} from "@material-ui/core";
 
-const styles = (theme) => ({
-  container: {
-    padding: theme.spacing(3),
-    display: "flex",
-    alignItems: "center",
-    minHeight: "100%",
-  },
-  content: {
-    width: "100%",
-  },
-});
+const useStyles = makeStyles((theme: Theme) =>
+  createStyles({
+    container: {
+      padding: theme.spacing(3),
+      display: "flex",
+      alignItems: "center",
+      minHeight: "100%",
+    },
+    content: {
+      width: "100%",
+    },
+  })
+);
 
-function AppContainerRaw({ classes, children }) {
+function AppContainer({children}: PropsWithChildren<{}>) {
+  const classes = useStyles();
   return (
     <div className={classes.container}>
       <div className={classes.content}>{children}</div>
     </div>
   );
 }
-
-const AppContainer = withStyles(styles)(AppContainerRaw);
 
 export default AppContainer;

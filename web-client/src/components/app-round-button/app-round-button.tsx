@@ -1,14 +1,14 @@
-import React from "react";
+import React, {PropsWithChildren} from "react";
 import makeStyles from "@material-ui/core/styles/makeStyles";
-import withTheme from "@material-ui/core/styles/withTheme";
 import ButtonBase from "@material-ui/core/ButtonBase";
+import {ButtonProps, createStyles, Theme} from '@material-ui/core';
 
-function AppRoundButtonRaw(props) {
-  const classes = makeStyles({
+const useStyles = makeStyles((theme: Theme) =>
+  createStyles({
     root: {
       position: "relative",
       border: "1px solid",
-      borderColor: props.theme.palette.primary.main,
+      borderColor: theme.palette.primary.main,
       borderRadius: "50%",
       flexShrink: 0,
       height: 36,
@@ -19,27 +19,31 @@ function AppRoundButtonRaw(props) {
       paddingTop: 0,
       paddingBottom: 0,
       fontSize: "1rem",
-      color: props.theme.palette.primary.main,
+      color: theme.palette.primary.main,
     },
     disabled: {
-      borderColor: props.theme.palette.text.disabled,
-      color: props.theme.palette.text.secondary,
+      borderColor: theme.palette.text.disabled,
+      color: theme.palette.text.secondary,
     },
-  })();
+  })
+);
+
+function AppRoundButton(
+  {children, disabled, className, ...props}: PropsWithChildren<{ className?: string }> & ButtonProps
+) {
+  const classes = useStyles();
   return (
     <ButtonBase
       {...props}
       className={
         classes.root +
-        (props.disabled ? " " + classes.disabled : "") +
-        (props.className ? " " + props.className : "")
+        (disabled ? " " + classes.disabled : "") +
+        (className ? " " + className : "")
       }
     >
-      {props.children}
+      {children}
     </ButtonBase>
   );
 }
-
-const AppRoundButton = withTheme(AppRoundButtonRaw);
 
 export default AppRoundButton;

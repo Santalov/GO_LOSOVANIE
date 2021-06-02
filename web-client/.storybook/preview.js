@@ -1,9 +1,9 @@
-import React from "react";
-import "../src/styles/App.scss";
+import React from 'react';
+import '../src/styles/App.scss';
 import {addDecorator} from '@storybook/react';
-import AppThemeProvider from "../src/theme/app-theme-provider";
-import makeStyles from "@material-ui/core/styles/makeStyles";
-import withTheme from "@material-ui/core/styles/withTheme";
+import AppThemeProvider from '../src/theme/app-theme-provider';
+import makeStyles from '@material-ui/core/styles/makeStyles';
+import withTheme from '@material-ui/core/styles/withTheme';
 
 function WrapRaw({ theme, children }) {
   console.log(theme);
@@ -19,7 +19,7 @@ function WrapRaw({ theme, children }) {
       padding: 30,
     },
     notroot: {
-      width: 400,
+      width: 600,
     },
   })();
   return (

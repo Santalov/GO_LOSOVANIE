@@ -1,13 +1,16 @@
 import React from "react";
-import withStyles from "@material-ui/core/styles/withStyles";
+import {createStyles, makeStyles, Theme} from '@material-ui/core';
 
-const styles = (theme) => ({
-  logo: {
-    fill: theme.palette.primary.main,
-  },
-});
+const useStyles = makeStyles((theme: Theme) =>
+  createStyles({
+    logo: {
+      fill: theme.palette.primary.main,
+    },
+  })
+);
 
-function AppLogoRaw({classes}) {
+function AppLogo() {
+  const classes = useStyles();
   return (
     <svg
       width="100%"
@@ -32,7 +35,5 @@ function AppLogoRaw({classes}) {
     </svg>
   );
 }
-
-const AppLogo = withStyles(styles)(AppLogoRaw);
 
 export default AppLogo;

@@ -1,31 +1,47 @@
-import React from "react";
-import withStyles from "@material-ui/core/styles/withStyles";
+import React, {PropsWithChildren} from "react";
+import {createStyles, makeStyles, Theme} from '@material-ui/core';
+import classNames from 'classnames';
 
-const styles = (theme) => ({
-  main: {
-    marginBottom: theme.spacing(0.5),
-  },
-  label: {
-    color: theme.palette.text.secondary,
-    fontSize: "0.6rem",
-  },
-  content: {
-    color: theme.palette.text.primary,
-    fontSize: "0.85rem",
-    wordWrap: "break-word",
-  },
-});
+const useStyles = makeStyles((theme: Theme) =>
+  createStyles({
+    main: {
+      marginBottom: theme.spacing(0.5),
+    },
+    label: {
+      color: theme.palette.text.secondary,
+      fontSize: "0.85rem",
+    },
+    content: {
+      color: theme.palette.text.primary,
+      fontSize: "1rem",
+      wordWrap: "break-word",
+    },
+    labelLarge: {
+      fontSize: '1rem',
+    },
+    contentLarge: {
+      fontSize: '1.2rem'
+    }
+  })
+);
 
-function AppInfoLineRaw({ classes, label, children }) {
+function AppInfoLine(
+  {label, children, large}: PropsWithChildren<{ label: string, large?: boolean }>) {
+  const classes = useStyles();
   return (
     <div className={classes.main}>
-      <div className={classes.label}>{label}</div>
-      <div className={classes.content}>{children}</div>
+      <div
+        className={classNames(classes.label, {[classes.labelLarge]: large})}
+      >
+        {label}
+      </div>
+      <div
+        className={classNames(classes.content, {[classes.contentLarge]: large})}
+      >
+        {children}
+      </div>
     </div>
   );
 }
-
-//@ts-ignore
-const AppInfoLine = withStyles(styles)(AppInfoLineRaw);
 
 export default AppInfoLine;

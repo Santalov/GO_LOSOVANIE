@@ -1,27 +1,29 @@
-import React from "react";
-import withStyles from "@material-ui/core/styles/withStyles";
+import React, {PropsWithChildren} from "react";
+import {createStyles, makeStyles, Theme} from '@material-ui/core';
+import classNames from 'classnames';
 
-const styles = (theme) => ({
-  errorCard: {
-    padding: theme.spacing(1),
-    // backgroundColor: theme.palette.error.main,
-    border: "1px solid " + theme.palette.error.dark,
-    display: "flex",
-    alignItems: "center",
-    alignContent: "center",
-    fontSize: "0.9rem",
-    borderRadius: 4,
-  },
-});
+const useStyles = makeStyles((theme: Theme) =>
+  createStyles({
+    errorCard: {
+      padding: theme.spacing(1),
+      // backgroundColor: theme.palette.error.main,
+      border: "1px solid " + theme.palette.error.dark,
+      display: "flex",
+      alignItems: "center",
+      alignContent: "center",
+      fontSize: "0.9rem",
+      borderRadius: 4,
+    },
+  })
+);
 
-function AppErrorCardRaw({ classes, className = '', children }) {
+function AppErrorCard({children, className}: PropsWithChildren<{ className?: string }>) {
+  const classes = useStyles();
   return (
-    <div className={classes.errorCard + (className ? " " + className : "")}>
+    <div className={classNames(classes.errorCard, className)}>
       {children}
     </div>
   );
 }
-
-const AppErrorCard = withStyles(styles)(AppErrorCardRaw);
 
 export default AppErrorCard;

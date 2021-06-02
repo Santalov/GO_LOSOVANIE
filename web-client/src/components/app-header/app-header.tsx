@@ -2,6 +2,7 @@ import React, {PropsWithChildren} from "react";
 import AppLogoGroup from "../app-logo-group/app-logo-group";
 import AppCard from '../app-card/app-card';
 import {createStyles, makeStyles} from '@material-ui/core';
+import {dashboard} from '../../theme/app-theme-constants';
 
 const useStyles = makeStyles((theme) =>
   createStyles({
@@ -16,7 +17,8 @@ const useStyles = makeStyles((theme) =>
       marginBottom: theme.spacing(3),
       height: '70px',
       alignItems: 'center',
-      paddingLeft: theme.spacing(10),
+      paddingLeft: theme.spacing(dashboard.sidePadding),
+      paddingRight: theme.spacing(dashboard.sidePadding)
     }
   })
 );
