@@ -36,8 +36,8 @@ github.com/Santalov/GO_LOSOVANIE.
 git clone https://github.com/Santalov/GO_LOSOVANIE.git
 ```
 
-Для запуска необходимо вручную установить Go (по инструкции с 
-официального сайта)[https://golang.org/doc/install] и (Docker)[https://docs.docker.com/engine/install/ubuntu/]. Установка Go зависимостей не требуется, 
+Для запуска необходимо вручную установить Go [по инструкции с 
+официального сайта](https://golang.org/doc/install) и Docker [инструкция](https://docs.docker.com/engine/install/ubuntu/). Установка Go зависимостей не требуется, 
 так как используется система Go Modules. 
 Для последующей настройки важно, чтобы были выставлены переменные 
 окружения
@@ -114,8 +114,8 @@ cd ../
 п.п.>/golosovanie_private_key.json – файл с закрытым
 ключом клиента;
 * config/node<номер п.п.>/ – папка с настройками валидатора, 
-смысл каждого файла и настроек в них подробно описан в официальной 
-документации Tendermint Core [5];
+смысл каждого файла и настроек в них подробно описан в [официальной 
+документации Tendermint Core](https://docs.tendermint.com/master/nodes/configuration.html);
 * config/node<номер п.п.>/golosovanie_private_key.json –
 файл с закрытым ключом валидатора, используемым им при создании 
 транзакций, но не используемым в консенсусе;
